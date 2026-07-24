@@ -1,0 +1,33 @@
+{
+  "name": "open-download",
+  "version": "1.0.0",
+  "description": "Chrome 扩展 — 全局监听网络请求，自动识别并批量下载图片",
+  "type": "module",
+  "scripts": {
+    "dev": "echo '在 Chrome 中加载 unpacked 扩展: chrome://extensions'",
+    "pack": "node scripts/pack.js",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage"
+  },
+  "keywords": ["chrome-extension", "image-downloader", "webrequest", "batch-download"],
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "cross-env": "^7.0.3"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.js",
+      "**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "lib/**/*.js",
+      "background/**/*.js",
+      "!**/node_modules/**"
+    ],
+    "moduleDirectories": ["node_modules", "."],
+    "verbose": true
+  }
+}

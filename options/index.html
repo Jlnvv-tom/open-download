@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Download 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Open Download 设置</h1>
+
+    <section class="card">
+      <h2>下载设置</h2>
+
+      <div class="form-row">
+        <label>
+          <input type="checkbox" id="auto-download">
+          自动下载捕获到的图片
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label>保存目录</label>
+        <input type="text" id="save-path" placeholder="OpenDownload">
+        <small>下载文件保存的子目录名（位于下载文件夹下）</small>
+      </div>
+
+      <div class="form-row">
+        <label>文件命名方式</label>
+        <select id="file-naming">
+          <option value="original">保留原始文件名</option>
+          <option value="domain">域名_文件名</option>
+          <option value="sequential">序号 (img_0001)</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>并发下载数</label>
+        <input type="number" id="concurrency" min="1" max="10" value="3">
+        <small>同时下载的文件数量 (1-10)</small>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>过滤设置</h2>
+
+      <div class="form-row">
+        <label>最小文件大小 (KB)</label>
+        <input type="number" id="min-size" min="0" placeholder="0 = 不限制">
+        <small>小于此大小的图片将被忽略</small>
+      </div>
+
+      <div class="form-row">
+        <label>最大文件大小 (KB)</label>
+        <input type="number" id="max-size" min="0" placeholder="0 = 不限制">
+        <small>大于此大小的图片将被忽略</small>
+      </div>
+
+      <div class="form-row">
+        <label>排除域名 (每行一个)</label>
+        <textarea id="exclude-domains" rows="4" placeholder="example.com&#10;cdn.example.com"></textarea>
+        <small>这些域名的图片请求将被忽略</small>
+      </div>
+
+      <div class="form-row">
+        <label>仅下载扩展名 (逗号分隔)</label>
+        <input type="text" id="filter-extensions" placeholder=".jpg,.png,.webp">
+        <small>留空表示下载所有图片类型</small>
+      </div>
+
+      <div class="form-row">
+        <label>
+          <input type="checkbox" id="dedupe" checked>
+          URL 去重
+        </label>
+        <small>相同 URL 的图片只捕获一次</small>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button class="btn-primary" id="btn-save">保存设置</button>
+      <button class="btn-secondary" id="btn-reset">恢复默认</button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

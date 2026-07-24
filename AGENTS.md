@@ -1,0 +1,138 @@
+# AGENTS.md
+
+面向 AI 编码助手的项目指南。修改本仓库时，优先遵循本文档；如果与用户的明确要求冲突，以用户要求为准。
+
+## 项目概览
+
+Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听网页网络请求中的图片资源，并在 Popup 中筛选、预览和批量下载。
+
+项目没有前端构建流程，源码会作为 unpacked extension 直接被 Chrome 加载。修改后通常需要在 `chrome://extensions` 中重新加载扩展来验证。
+
+## 目录职责
+
+- `manifest.json`: MV3 扩展清单，声明权限、后台 service worker、popup、options、content script 和图标。
+- `background/index.js`: 核心后台逻辑，包括 `webRequest` 监听、状态恢复、右键菜单、消息路由和下载触发。
+- `lib/constants.js`: 全局常量、默认设置和 message type 定义。
+- `lib/store.js`: `chrome.storage.local` 上的图片、设置和统计数据管理。
+- `lib/downloader.js`: 批量下载、并发控制和下载状态更新。
+- `lib/utils.js`: URL、文件名、大小格式化、去重 key 等通用工具。
+- `popup/`: 弹窗页面 UI、样式和交互逻辑。
+- `options/`: 设置页 UI、样式和交互逻辑。
+- `content/index.js`: 页面内图片尺寸收集和动态图片观察。
+- `assets/`: 扩展图标。
+- `scripts/gen-icons.py`: 生成 PNG 图标的脚本。
+- `specs/`: 预留的规格或说明目录，当前为空。
+
+## 常用命令
+
+```bash
+npm run dev
+```
+
+只会提示在 Chrome 中加载 unpacked 扩展，不会启动 dev server。
+
+```bash
+python3 scripts/gen-icons.py
+```
+
+重新生成 `assets/icon-16.png`、`assets/icon-48.png`、`assets/icon-128.png`。
+
+```bash
+npm run pack
+```
+
+当前 `package.json` 声明了该命令，但仓库里尚未包含 `scripts/pack.js`。除非先实现该脚本，否则不要假设它可用。
+
+## 开发与验证
+
+1. 在 Chrome 打开 `chrome://extensions`。
+2. 开启「开发者模式」。
+3. 选择本项目根目录作为「加载已解压的扩展程序」。
+4. 修改代码后点击扩展卡片上的重新加载按钮。
+5. 验证 Popup、Options、后台日志和实际下载行为。
+
+目前仓库没有自动化测试、lint 或 bundler 配置。做功能变更时，至少手动验证：
+
+- Popup 可以打开，监听开关能更新状态。
+- 开启监听后浏览普通网页能捕获图片。
+- 搜索、大小筛选、扩展名筛选不报错。
+- 下载选中和下载全部能正常调用 Chrome downloads API。
+- Options 设置保存后 Popup/background 读到的是新配置。
+
+## 代码约定
+
+- 使用原生 ES modules，保持相对路径导入，例如 `../lib/constants.js`。
+- 保持无构建依赖的结构，不引入框架或打包器，除非用户明确要求。
+- 面向 Chrome MV3 API 编写代码，后台脚本是 service worker，需注意生命周期和异步消息响应。
+- `chrome.runtime.onMessage.addListener` 中如需异步 `sendResponse`，保留 `return true`。
+- 新的跨模块消息类型先添加到 `lib/constants.js` 的 `MESSAGE_TYPES`，再在发送端和接收端使用。
+- 设置默认值放在 `DEFAULT_SETTINGS`，存储键放在 `STORAGE_KEYS`。
+- 下载和存储状态应通过 `ImageStore`、`DownloadManager` 这两个边界更新，避免 UI 直接改 storage 结构。
+- 避免把大量业务逻辑写进 HTML；Popup 和 Options 的行为分别放在对应 JS 文件。
+- 现有代码注释以中文为主；新增注释保持简短，只解释不明显的行为。
+
+## Chrome 扩展注意事项
+
+- `webRequest` 在 MV3 中用于观察请求，不要实现阻塞或拦截式逻辑，除非同步调整权限和架构。
+- `background/index.js` 中监听器重复注册会造成重复捕获；修改启动/停止逻辑时确认 `isListening` 的语义。
+- `chrome.storage.local` 是异步 API，但当前 `store.addImage()` 内部有 fire-and-forget 保存行为。涉及一致性或批量更新时要谨慎。
+- `content/index.js` 会向 background 发送 `CONTENT_IMAGES_UPDATE`，当前 background 尚未处理这个 message type。添加尺寸补全功能时应补齐消息处理。
+- `lib/utils.js` 的 `isImageUrl()` 使用 `IMAGE_EXTENSIONS`，如启用或修改该函数，确认常量导入正确。
+
+## UI 修改指南
+
+- Popup 是紧凑工具界面，优先保证信息密度、可扫描性和按钮状态清晰。
+- Options 是表单配置页，优先保持字段含义和默认设置一致。
+- 变更 DOM id/class 前，同步检查对应的 JS 查询选择器和 CSS。
+- 不要加入需要远程资源才能显示的 UI 资产；扩展页面应尽量离线可用。
+
+## 数据模型
+
+捕获图片对象大致包含：
+
+```js
+{
+  id,
+  url,
+  filename,
+  domain,
+  mimeType,
+  size,
+  width,
+  height,
+  capturedAt,
+  tabUrl,
+  tabTitle,
+  downloaded,
+  status
+}
+```
+
+设置对象以 `DEFAULT_SETTINGS` 为准，常见字段包括：
+
+- `enabled`
+- `autoDownload`
+- `minImageSize`
+- `maxImageSize`
+- `concurrency`
+- `savePath`
+- `dedupe`
+- `fileNaming`
+- `filters.domains`
+- `filters.extensions`
+
+## 变更前检查清单
+
+- 是否需要新增或复用 `MESSAGE_TYPES`？
+- 是否影响 `chrome.storage.local` 中已保存的数据兼容性？
+- 是否会增加 MV3 权限？如果会，更新 `manifest.json` 和 README。
+- 是否会改变下载文件名或目录？确认 `chrome.downloads.download` 的限制。
+- 是否需要在 Popup、Options、background 三处同步更新？
+
+## 交付说明
+
+完成修改后，在回复用户时说明：
+
+- 改了哪些文件。
+- 如何手动验证。
+- 哪些自动化检查未运行或当前不存在。
