@@ -16,7 +16,7 @@
       <div class="form-row">
         <label>
           <input type="checkbox" id="auto-download">
-          自动下载捕获到的图片
+          自动下载捕获到的资源
         </label>
       </div>
 
@@ -48,13 +48,13 @@
       <div class="form-row">
         <label>最小文件大小 (KB)</label>
         <input type="number" id="min-size" min="0" placeholder="0 = 不限制">
-        <small>小于此大小的图片将被忽略</small>
+        <small>小于此大小的图片或视频将被忽略</small>
       </div>
 
       <div class="form-row">
         <label>最大文件大小 (KB)</label>
         <input type="number" id="max-size" min="0" placeholder="0 = 不限制">
-        <small>大于此大小的图片将被忽略</small>
+        <small>大于此大小的图片或视频将被忽略</small>
       </div>
 
       <div class="form-row">
@@ -64,9 +64,9 @@
       </div>
 
       <div class="form-row">
-        <label>仅下载扩展名 (逗号分隔)</label>
-        <input type="text" id="filter-extensions" placeholder=".jpg,.png,.webp">
-        <small>留空表示下载所有图片类型</small>
+        <label>仅捕获扩展名 (逗号分隔)</label>
+        <input type="text" id="filter-extensions" placeholder=".jpg,.png,.webp,.mp4,.webm">
+        <small>留空表示捕获所有支持的图片和视频类型</small>
       </div>
 
       <div class="form-row">
@@ -74,7 +74,7 @@
           <input type="checkbox" id="dedupe" checked>
           URL 去重
         </label>
-        <small>相同 URL 的图片只捕获一次</small>
+        <small>相同 URL 的资源只捕获一次</small>
       </div>
     </section>
 

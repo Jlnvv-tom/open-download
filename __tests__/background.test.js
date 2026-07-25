@@ -106,6 +106,8 @@ describe('background message handler', () => {
     const images = store.getImages();
     expect(images).toHaveLength(1);
     expect(images[0]).toMatchObject({
+      mediaType: 'image',
+      extension: 'jpg',
       url: 'https://cdn.example.com/assets/photo.jpg',
       filename: 'photo.jpg',
       domain: 'cdn.example.com',
@@ -115,10 +117,63 @@ describe('background message handler', () => {
       tabTitle: 'Example Page'
     });
     expect(global.chrome.runtime.sendMessage).toHaveBeenCalledWith({
-      type: MESSAGE_TYPES.IMAGE_FOUND,
+      type: MESSAGE_TYPES.MEDIA_FOUND,
       payload: images[0]
     });
 
     global.chrome.runtime.sendMessage = sendMessage;
+  });
+
+  test('应该捕获视频媒体请求', async () => {
+    await store.init();
+    await store.saveSettings({ enabled: true });
+    const sendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = jest.fn(async () => ({ success: true }));
+
+    startListening();
+    await onRequestCompleted({
+      type: 'media',
+      url: 'https://cdn.example.com/video/demo.mp4',
+      tabId: 7,
+      responseHeaders: [
+        { name: 'Content-Type', value: 'video/mp4' },
+        { name: 'Content-Length', value: '4096' }
+      ]
+    });
+
+    const media = store.getMedia();
+    expect(media).toHaveLength(1);
+    expect(media[0]).toMatchObject({
+      mediaType: 'video',
+      extension: 'mp4',
+      mimeType: 'video/mp4',
+      size: 4096
+    });
+
+    global.chrome.runtime.sendMessage = sendMessage;
+  });
+
+  test('应该批量更新媒体下载状态', async () => {
+    await store.init();
+    const media = store.addMedia({
+      mediaType: 'video',
+      url: 'https://cdn.example.com/video/demo.mp4',
+      filename: 'demo.mp4',
+      mimeType: 'video/mp4'
+    });
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.UPDATE_MEDIA_STATUSES,
+      payload: {
+        ids: [media.id],
+        status: 'downloaded'
+      }
+    });
+
+    expect(response.success).toBe(true);
+    expect(store.getMediaById(media.id)).toMatchObject({
+      status: 'downloaded',
+      downloaded: true
+    });
   });
 });

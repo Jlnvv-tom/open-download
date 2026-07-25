@@ -8,7 +8,11 @@ import {
   getExtension,
   isImageUrl,
   formatSize,
+  detectMediaType,
+  getNormalizedExtension,
   generateId,
+  isVideoUrl,
+  isMediaUrl,
   sanitizeFilename,
   generateFilename,
   urlDedupeKey,
@@ -85,6 +89,28 @@ describe('utils.js', () => {
       expect(isImageUrl('https://example.com/video.mp4')).toBe(false);
       expect(isImageUrl('https://example.com/document.pdf')).toBe(false);
       expect(isImageUrl('https://example.com/')).toBe(false);
+    });
+  });
+
+  describe('媒体类型工具', () => {
+    test('应该标准化扩展名', () => {
+      expect(getNormalizedExtension('photo.JPG')).toBe('jpg');
+      expect(getNormalizedExtension('https://example.com/video.MP4?x=1')).toBe('mp4');
+    });
+
+    test('应该识别视频 URL 和媒体 URL', () => {
+      expect(isVideoUrl('https://example.com/video.mp4')).toBe(true);
+      expect(isMediaUrl('https://example.com/video.webm')).toBe(true);
+      expect(isMediaUrl('https://example.com/photo.png')).toBe(true);
+      expect(isMediaUrl('https://example.com/app.js')).toBe(false);
+    });
+
+    test('应该根据 MIME、resource type 或扩展名判断媒体类型', () => {
+      expect(detectMediaType({ mimeType: 'image/png' })).toBe('image');
+      expect(detectMediaType({ mimeType: 'video/mp4' })).toBe('video');
+      expect(detectMediaType({ resourceType: 'media' })).toBe('video');
+      expect(detectMediaType({ url: 'https://example.com/photo.webp' })).toBe('image');
+      expect(detectMediaType({ url: 'https://example.com/app.js' })).toBe('');
     });
   });
 

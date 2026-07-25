@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Open Download - 网络图片批量下载器",
-  "version": "1.0.0",
-  "description": "监听所有网站的网络请求，自动识别并批量下载图片资源",
+  "version": "1.1.0",
+  "description": "监听所有网站的网络请求，自动识别并批量下载图片和视频资源",
   "permissions": [
     "webRequest",
     "downloads",

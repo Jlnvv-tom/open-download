@@ -1,21 +1,20 @@
 // background/index.js
 // Service Worker — 核心监听 + 消息处理
 
-import { MESSAGE_TYPES, IMAGE_MIME_TYPES } from '../lib/constants.js';
+import { MESSAGE_TYPES } from '../lib/constants.js';
 import { store } from '../lib/store.js';
 import { DownloadManager } from '../lib/downloader.js';
 import {
+  detectMediaType,
+  extensionFromMimeType,
   extractFilename,
   extractDomain,
-  getExtension,
+  getNormalizedExtension,
 } from '../lib/utils.js';
 
 // ─── 初始化 ────────────────────────────────────────────
 
 const downloader = new DownloadManager(store);
-
-// 图片类型集合（用于快速查找）
-const IMAGE_TYPE_SET = new Set(IMAGE_MIME_TYPES);
 
 let isListening = false;
 
@@ -29,32 +28,9 @@ async function onRequestCompleted(details) {
   if (!isListening) return;
   await store.init();
 
-  // 仅处理主资源类型为 image 的请求
-  if (details.type !== 'image') return;
-
   // 过滤浏览器内部协议
   if (details.url.startsWith('chrome://') || details.url.startsWith('chrome-extension://')) {
     return;
-  }
-
-  // 过滤 data URI 过小的
-  if (details.url.startsWith('data:image/')) {
-    // data URI 无法获取大小，简单放行
-  }
-
-  const filename = extractFilename(details.url);
-  const domain = extractDomain(details.url);
-  const settings = store.getSettings();
-
-  // 域名过滤
-  if (settings.filters.domains.length > 0) {
-    if (settings.filters.domains.includes(domain)) return;
-  }
-
-  // 扩展名过滤
-  if (settings.filters.extensions.length > 0) {
-    const ext = getExtension(filename);
-    if (!settings.filters.extensions.includes(ext)) return;
   }
 
   // 获取响应头中的 Content-Type 和 Content-Length
@@ -72,10 +48,27 @@ async function onRequestCompleted(details) {
     }
   }
 
-  // 如果有 MIME 类型，进一步确认是图片
-  if (mimeType && !IMAGE_TYPE_SET.has(mimeType.split(';')[0].trim().toLowerCase())) {
-    // MIME 不是图片类型，但 resource type 是 image，仍然保留
-    // 某些服务器返回错误的 content-type
+  const mediaType = detectMediaType({
+    url: details.url,
+    mimeType,
+    resourceType: details.type,
+  });
+  if (!mediaType) return;
+
+  const filename = extractFilename(details.url);
+  const domain = extractDomain(details.url);
+  const settings = store.getSettings();
+  const extension = getNormalizedExtension(filename || details.url) || extensionFromMimeType(mimeType);
+
+  // 域名过滤
+  if (settings.filters.domains.length > 0) {
+    if (settings.filters.domains.includes(domain)) return;
+  }
+
+  // 扩展名过滤
+  if (settings.filters.extensions.length > 0) {
+    const allowedExtensions = settings.filters.extensions.map(ext => ext.replace(/^\./, '').toLowerCase());
+    if (!allowedExtensions.includes(extension)) return;
   }
 
   // 大小过滤
@@ -97,28 +90,30 @@ async function onRequestCompleted(details) {
     }).catch(() => {});
   }
 
-  const image = store.addImage({
+  const media = store.addMedia({
+    mediaType,
     url: details.url,
     filename,
+    extension,
     domain,
-    mimeType: mimeType || 'image/unknown',
+    mimeType: mimeType || `${mediaType}/unknown`,
     size: contentLength,
     tabUrl,
     tabTitle,
   });
 
-  if (image) {
+  if (media) {
     // 通知 popup 有新图片
     chrome.runtime.sendMessage({
-      type: MESSAGE_TYPES.IMAGE_FOUND,
-      payload: image,
+      type: MESSAGE_TYPES.MEDIA_FOUND,
+      payload: media,
     }).catch(() => {
       // popup 可能未打开，忽略错误
     });
 
     // 自动下载
     if (settings.autoDownload) {
-      downloader.downloadImage(image);
+      downloader.downloadImage(media);
     }
   }
 }
@@ -128,7 +123,7 @@ async function onRequestCompleted(details) {
  */
 function onHeadersReceived(details) {
   if (!isListening) return;
-  if (details.type !== 'image') return;
+  if (details.type !== 'image' && details.type !== 'media') return;
 
   // 这里只做被动监听，不拦截
   // 实际图片信息在 onCompleted 中处理
@@ -274,6 +269,15 @@ function handleRuntimeMessage(message, sender, sendResponse) {
             })
           ), 0);
           sendResponse({ success: true, updated });
+          break;
+        }
+
+        case MESSAGE_TYPES.UPDATE_MEDIA_STATUSES: {
+          await store.init();
+          const ids = message.payload?.ids || [];
+          const status = message.payload?.status || 'downloaded';
+          ids.forEach(id => store.updateMediaStatus(id, status));
+          sendResponse({ success: true, updated: ids.length, stats: store.getStats() });
           break;
         }
 

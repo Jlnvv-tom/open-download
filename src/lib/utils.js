@@ -1,7 +1,13 @@
 // lib/utils.js
 // 通用工具函数
 
-import { IMAGE_EXTENSIONS } from './constants.js';
+import {
+  IMAGE_EXTENSIONS,
+  IMAGE_MIME_TYPES,
+  MEDIA_TYPES,
+  VIDEO_EXTENSIONS,
+  VIDEO_MIME_TYPES
+} from './constants.js';
 
 /**
  * 从 URL 中提取文件名
@@ -43,6 +49,54 @@ export function getExtension(filename) {
   return parts.length > 1 ? `.${parts.pop().toLowerCase()}` : '';
 }
 
+export function getNormalizedExtension(filenameOrUrl) {
+  const filename = filenameOrUrl.includes('://') || filenameOrUrl.startsWith('data:')
+    ? extractFilename(filenameOrUrl)
+    : filenameOrUrl;
+  return getExtension(filename).replace(/^\./, '').toLowerCase();
+}
+
+export function extensionFromMimeType(mimeType) {
+  const normalized = (mimeType || '').split(';')[0].trim().toLowerCase();
+  const map = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/bmp': 'bmp',
+    'image/svg+xml': 'svg',
+    'image/x-icon': 'ico',
+    'image/avif': 'avif',
+    'image/tiff': 'tiff',
+    'image/apng': 'apng',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+    'video/x-m4v': 'm4v',
+    'video/x-msvideo': 'avi',
+    'video/x-matroska': 'mkv',
+    'video/mpeg': 'mpeg',
+    'video/3gpp': '3gp',
+    'application/vnd.apple.mpegurl': 'm3u8',
+    'application/x-mpegurl': 'm3u8',
+    'audio/mpegurl': 'm3u8',
+  };
+  return map[normalized] || '';
+}
+
+export function detectMediaType({ url = '', mimeType = '', resourceType = '' } = {}) {
+  const normalizedMime = (mimeType || '').split(';')[0].trim().toLowerCase();
+  const ext = `.${getNormalizedExtension(url)}`;
+
+  if (IMAGE_MIME_TYPES.includes(normalizedMime)) return MEDIA_TYPES.IMAGE;
+  if (VIDEO_MIME_TYPES.includes(normalizedMime)) return MEDIA_TYPES.VIDEO;
+  if (resourceType === 'image') return MEDIA_TYPES.IMAGE;
+  if (resourceType === 'media') return MEDIA_TYPES.VIDEO;
+  if (IMAGE_EXTENSIONS.includes(ext) || url.startsWith('data:image/')) return MEDIA_TYPES.IMAGE;
+  if (VIDEO_EXTENSIONS.includes(ext)) return MEDIA_TYPES.VIDEO;
+  return '';
+}
+
 /**
  * 判断 URL 是否为图片
  * @param {string} url - 要检查的 URL
@@ -53,6 +107,16 @@ export function isImageUrl(url) {
   const ext = getExtension(filename);
   // 不能仅靠扩展名判断，data URI 也要处理
   return IMAGE_EXTENSIONS.includes(ext) || url.startsWith('data:image/');
+}
+
+export function isVideoUrl(url) {
+  const filename = extractFilename(url);
+  const ext = getExtension(filename);
+  return VIDEO_EXTENSIONS.includes(ext);
+}
+
+export function isMediaUrl(url) {
+  return isImageUrl(url) || isVideoUrl(url);
 }
 
 /**

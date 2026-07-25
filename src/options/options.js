@@ -46,7 +46,7 @@ function collectSettings() {
 
   const extensions = fields.filterExtensions.value
     .split(',')
-    .map(e => e.trim().toLowerCase())
+    .map(e => e.trim().replace(/^\./, '').toLowerCase())
     .filter(Boolean);
 
   const minKB = parseInt(fields.minSize.value, 10) || 0;

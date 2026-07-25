@@ -10,6 +10,11 @@ export const IMAGE_EXTENSIONS = [
   '.svg', '.ico', '.avif', '.tiff', '.tif', '.apng'
 ];
 
+export const VIDEO_EXTENSIONS = [
+  '.mp4', '.webm', '.mov', '.m4v', '.avi', '.mkv',
+  '.mpeg', '.mpg', '.3gp', '.m3u8'
+];
+
 /**
  * 图片 MIME 类型列表
  * @type {string[]}
@@ -18,6 +23,28 @@ export const IMAGE_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'image/bmp', 'image/svg+xml', 'image/x-icon',
   'image/avif', 'image/tiff', 'image/apng'
+];
+
+export const VIDEO_MIME_TYPES = [
+  'video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v',
+  'video/x-msvideo', 'video/x-matroska', 'video/mpeg',
+  'video/3gpp', 'application/vnd.apple.mpegurl',
+  'application/x-mpegurl', 'audio/mpegurl'
+];
+
+export const MEDIA_TYPES = {
+  IMAGE: 'image',
+  VIDEO: 'video',
+};
+
+export const IMAGE_FORMAT_TABS = [
+  'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp',
+  'svg', 'ico', 'avif', 'tiff', 'tif', 'apng'
+];
+
+export const VIDEO_FORMAT_TABS = [
+  'mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv',
+  'mpeg', 'mpg', '3gp', 'm3u8'
 ];
 
 /**
@@ -52,9 +79,15 @@ export const DEFAULT_SETTINGS = {
   savePath: 'OpenDownload', // 下载目录
   dedupe: true,           // 去重
   fileNaming: 'original',  // original | domain | sequential
+  ui: {
+    viewMode: 'list',
+    mediaType: 'image',
+    contentSize: 132,
+  },
   filters: {
     domains: [],          // 排除的域名列表
     extensions: [],       // 只下载的扩展名 (空 = 全部)
+    mediaTypes: [],
     minDimensions: { width: 0, height: 0 }, // 最小尺寸
   }
 };
@@ -78,4 +111,6 @@ export const MESSAGE_TYPES = {
   DOWNLOAD_ERROR: 'DOWNLOAD_ERROR',
   EXPORT_IMAGES: 'EXPORT_IMAGES',
   CONTENT_IMAGES_UPDATE: 'CONTENT_IMAGES_UPDATE',
+  MEDIA_FOUND: 'MEDIA_FOUND',
+  UPDATE_MEDIA_STATUSES: 'UPDATE_MEDIA_STATUSES',
 };

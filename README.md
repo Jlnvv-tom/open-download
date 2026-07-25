@@ -1,14 +1,14 @@
-# Open Download — 网络图片批量下载器
+# Open Download — 网络媒体批量下载器
 
-Chrome 扩展 (Manifest V3) — 全局监听网络请求，自动识别并批量下载图片资源。
+Chrome 扩展 (Manifest V3) — 全局监听网络请求，自动识别图片和视频资源，并支持按类型筛选、预览和 ZIP 批量下载。
 
 ## 功能
 
-- 🌐 **全局监听** — 不区分网站，监听所有网络请求中的图片资源
+- 🌐 **全局监听** — 不区分网站，监听所有网络请求中的图片和视频资源
 - 🔍 **智能识别** — 通过 `webRequest` + `Content-Type` + 文件扩展名三重判断
-- 📦 **批量下载** — 支持并发控制、自动去重、文件命名策略
-- 🎯 **灵活过滤** — 按域名、扩展名、文件大小筛选
-- 🖼️ **缩略图预览** — Popup 中实时查看捕获的图片
+- 📦 **ZIP 批量下载** — 下载选中或当前筛选结果时打包为单个 ZIP 文件
+- 🎯 **灵活过滤** — 按图片/视频、格式、域名、扩展名、文件大小筛选
+- 🖼️ **双视图预览** — Popup 支持列表视图和卡片视图
 - ⚙️ **丰富的设置** — 自动下载、保存目录、命名方式等
 - 📊 **统计面板** — 捕获数 / 已下载 / 失败数
 
@@ -31,8 +31,10 @@ npm run build
 
 1. 点击工具栏中的 Open Download 图标
 2. 打开「监听」开关
-3. 正常浏览网页，插件会自动捕获图片请求
-4. 在 Popup 中选择需要的图片，点击「下载选中」或「全部下载」
+3. 正常浏览网页，插件会自动捕获图片和视频请求
+4. 在 Popup 中通过「图片 / 视频」和格式 Tab 筛选资源
+5. 切换列表视图或卡片视图浏览资源
+6. 选择需要的资源，点击「下载选中」或「全部下载」生成 ZIP 下载
 
 ## 项目结构
 
@@ -55,8 +57,9 @@ open-download/
 │   ├── lib/
 │   │   ├── constants.js   # 常量定义
 │   │   ├── utils.js       # 工具函数
-│   │   ├── store.js       # 图片存储管理 (chrome.storage)
-│   │   └── downloader.js  # 批量下载管理器
+│   │   ├── store.js       # 媒体存储管理 (chrome.storage)
+│   │   ├── downloader.js  # 批量下载管理器
+│   │   └── zip.js         # ZIP 打包工具
 │   └── assets/            # 图标资源
 ├── scripts/               # 构建、打包、图标生成脚本
 ├── __tests__/             # Jest 单元测试
@@ -96,7 +99,7 @@ npm run pack
 使用 `chrome.webRequest.onCompleted` 全局监听所有网络请求：
 
 - `urls: ['<all_urls>']` — 不区分网站
-- `details.type === 'image'` — 浏览器自动分类的图片资源
+- `details.type === 'image' / 'media'` — 浏览器自动分类的图片或媒体资源
 - `responseHeaders` — 获取 `Content-Type` 和 `Content-Length`
 
 ### 权限
@@ -112,7 +115,7 @@ npm run pack
 
 - `webRequest.onCompleted` 在 MV3 下仍可用于**观察性监听**（不拦截请求）
 - Service Worker 作为后台脚本，需注意生命周期管理
-- 使用 `chrome.storage.local` 持久化捕获的图片数据
+- 使用 `chrome.storage.local` 持久化捕获的媒体数据
 
 ## License
 

@@ -83,8 +83,23 @@ describe('ImageStore', () => {
       expect(image).toBeDefined();
       expect(image.id).toBeDefined();
       expect(image.url).toBe('https://example.com/test.jpg');
+      expect(image.mediaType).toBe('image');
+      expect(image.extension).toBe('jpg');
       expect(image.status).toBe('pending');
       expect(image.downloaded).toBe(false);
+    });
+
+    test('应该添加视频媒体', () => {
+      const media = testStore.addMedia({
+        mediaType: 'video',
+        url: 'https://example.com/video.mp4',
+        filename: 'video.mp4',
+        mimeType: 'video/mp4'
+      });
+
+      expect(media.mediaType).toBe('video');
+      expect(media.extension).toBe('mp4');
+      expect(testStore.getMedia()).toHaveLength(1);
     });
 
     test('应该生成唯一 ID', () => {
@@ -272,6 +287,19 @@ describe('ImageStore', () => {
       const filtered = testStore.getFilteredImages({ extensions: ['.png'] });
       expect(filtered.length).toBe(1);
       expect(filtered[0].filename).toBe('2.png');
+    });
+
+    test('应该按媒体类型过滤', () => {
+      testStore.addImage({ url: 'https://a.com/1.jpg', filename: '1.jpg' });
+      testStore.addMedia({
+        mediaType: 'video',
+        url: 'https://a.com/clip.mp4',
+        filename: 'clip.mp4'
+      });
+
+      const filtered = testStore.getFilteredMedia({ mediaType: 'video' });
+      expect(filtered.length).toBe(1);
+      expect(filtered[0].filename).toBe('clip.mp4');
     });
 
     test('应该按最小大小过滤', () => {

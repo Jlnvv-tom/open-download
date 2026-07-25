@@ -40,7 +40,22 @@
         <span class="stat-value" id="stat-failed">0</span>
         <span class="stat-label">失败</span>
       </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-matching">0</span>
+        <span class="stat-label">匹配</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-selected">0</span>
+        <span class="stat-label">已选</span>
+      </div>
     </div>
+
+    <div class="media-tabs" id="media-tabs">
+      <button class="tab active" data-media-type="image">图片 <span>0</span></button>
+      <button class="tab" data-media-type="video">视频 <span>0</span></button>
+    </div>
+
+    <div class="format-tabs" id="format-tabs"></div>
 
     <!-- Toolbar -->
     <div class="toolbar">
@@ -54,6 +69,24 @@
       <button class="btn-icon" id="btn-filter" title="筛选">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+      </button>
+      <button class="btn-icon active" id="btn-view-list" title="列表视图">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"/>
+          <line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="6" x2="3.01" y2="6"/>
+          <line x1="3" y1="12" x2="3.01" y2="12"/>
+          <line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-view-card" title="卡片视图">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
         </svg>
       </button>
       <button class="btn-icon" id="btn-clear" title="清空">
@@ -70,13 +103,20 @@
         <label>最小大小 (KB)</label>
         <input type="number" id="filter-min-size" placeholder="0" min="0">
       </div>
+      <div class="filter-row size-row">
+        <label>内容大小</label>
+        <div class="size-control">
+          <input type="range" id="content-size-range" min="88" max="220" step="4">
+          <input type="number" id="content-size-input" min="88" max="220" step="4">
+        </div>
+      </div>
       <div class="filter-row">
         <label>扩展名 (逗号分隔)</label>
         <input type="text" id="filter-extensions" placeholder=".jpg,.png,.webp">
       </div>
     </div>
 
-    <!-- Image List -->
+    <!-- Media List -->
     <div class="image-list" id="image-list">
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

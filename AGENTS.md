@@ -4,7 +4,7 @@
 
 ## 项目概览
 
-Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听网页网络请求中的图片资源，并在 Popup 中筛选、预览和批量下载。
+Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听网页网络请求中的图片和视频资源，并在 Popup 中筛选、预览和 ZIP 批量下载。
 
 项目采用轻量构建流程：运行时源码放在 `src/`，`npm run build` 会生成可加载到 Chrome 的 `dist/` 目录。修改源码后需要重新构建，并在 `chrome://extensions` 中重新加载扩展。
 
@@ -13,8 +13,9 @@ Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听
 - `src/manifest.json`: MV3 扩展清单，声明权限、后台 service worker、popup、options、content script 和图标。
 - `src/background/index.js`: 核心后台逻辑，包括 `webRequest` 监听、状态恢复、右键菜单、消息路由和下载触发。
 - `src/lib/constants.js`: 全局常量、默认设置和 message type 定义。
-- `src/lib/store.js`: `chrome.storage.local` 上的图片、设置和统计数据管理。
+- `src/lib/store.js`: `chrome.storage.local` 上的媒体、设置和统计数据管理。
 - `src/lib/downloader.js`: 批量下载、并发控制和下载状态更新。
+- `src/lib/zip.js`: 无压缩 ZIP 打包工具，用于 Popup 中的一次性 ZIP 下载。
 - `src/lib/utils.js`: URL、文件名、大小格式化、去重 key 等通用工具。
 - `src/popup/`: 弹窗页面 UI、样式和交互逻辑。
 - `src/options/`: 设置页 UI、样式和交互逻辑。
@@ -77,9 +78,10 @@ npm run pack
 当前仓库有 Jest 自动化测试和构建脚本，但没有 lint 或 bundler 配置。做功能变更时，先运行 `npm test` 和 `npm run build`；涉及真实 Chrome API、Popup、Options 或扩展权限时，还需要手动验证：
 
 - Popup 可以打开，监听开关能更新状态。
-- 开启监听后浏览普通网页能捕获图片。
-- 搜索、大小筛选、扩展名筛选不报错。
-- 下载选中和下载全部能正常调用 Chrome downloads API。
+- 开启监听后浏览普通网页能捕获图片和视频。
+- 搜索、大小筛选、媒体类型和扩展名筛选不报错。
+- 列表视图和卡片视图切换正常，选择状态不丢失。
+- 下载选中和下载全部能生成单个 ZIP 并调用 Chrome downloads API。
 - Options 设置保存后 Popup/background 读到的是新配置。
 
 ## 代码约定
@@ -111,18 +113,22 @@ npm run pack
 
 ## 数据模型
 
-捕获图片对象大致包含：
+捕获媒体对象大致包含：
 
 ```js
 {
   id,
+  mediaType,
   url,
   filename,
+  extension,
   domain,
   mimeType,
   size,
   width,
   height,
+  duration,
+  alt,
   capturedAt,
   tabUrl,
   tabTitle,
@@ -141,6 +147,8 @@ npm run pack
 - `savePath`
 - `dedupe`
 - `fileNaming`
+- `ui.viewMode`
+- `ui.mediaType`
 - `filters.domains`
 - `filters.extensions`
 

@@ -2,7 +2,14 @@
 // 图片存储管理 — 使用 chrome.storage.local
 
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from './constants.js';
-import { generateId, urlDedupeKey, extractDomain } from './utils.js';
+import {
+  detectMediaType,
+  extensionFromMimeType,
+  generateId,
+  getNormalizedExtension,
+  urlDedupeKey,
+  extractDomain
+} from './utils.js';
 
 /**
  * 图片存储管理类
@@ -25,6 +32,10 @@ class ImageStore {
     return {
       ...DEFAULT_SETTINGS,
       ...partial,
+      ui: {
+        ...DEFAULT_SETTINGS.ui,
+        ...(partial.ui || {}),
+      },
       filters: {
         ...DEFAULT_SETTINGS.filters,
         ...(partial.filters || {}),
@@ -37,15 +48,26 @@ class ImageStore {
   }
 
   _normalizeImage(image) {
+    const mimeExtension = extensionFromMimeType(image.mimeType);
+    const extension = (image.extension || getNormalizedExtension(image.filename || image.url || '') || mimeExtension).replace(/^\./, '');
+    const mediaType = image.mediaType || detectMediaType({
+      url: image.url || '',
+      mimeType: image.mimeType || '',
+      resourceType: 'image',
+    }) || 'image';
+
     return {
       id: image.id || generateId(),
+      mediaType,
       url: image.url || '',
       filename: image.filename || '',
+      extension,
       domain: image.domain || extractDomain(image.url || ''),
       mimeType: image.mimeType || '',
       size: image.size || 0,
       width: image.width || 0,
       height: image.height || 0,
+      duration: image.duration || 0,
       alt: image.alt || '',
       capturedAt: image.capturedAt || Date.now(),
       tabUrl: image.tabUrl || '',
@@ -89,6 +111,10 @@ class ImageStore {
     this.settings = this._mergeSettings({
       ...this.settings,
       ...partial,
+      ui: {
+        ...(this.settings.ui || {}),
+        ...(partial.ui || {}),
+      },
       filters: {
         ...(this.settings.filters || {}),
         ...(partial.filters || {}),
@@ -146,26 +172,44 @@ class ImageStore {
    * @returns {Object|null} 新增的图片对象，如果重复则返回 null
    */
   addImage(imageData) {
+    return this.addMedia({
+      ...imageData,
+      mediaType: imageData.mediaType || 'image',
+    });
+  }
+
+  addMedia(mediaData) {
     if (this.settings.dedupe) {
-      const key = urlDedupeKey(imageData.url);
+      const key = urlDedupeKey(mediaData.url);
       if (this.images.some(img => urlDedupeKey(img.url) === key)) {
         return null;
       }
     }
 
+    const mimeExtension = extensionFromMimeType(mediaData.mimeType);
+    const extension = (mediaData.extension || getNormalizedExtension(mediaData.filename || mediaData.url || '') || mimeExtension).replace(/^\./, '');
+    const mediaType = mediaData.mediaType || detectMediaType({
+      url: mediaData.url,
+      mimeType: mediaData.mimeType,
+      resourceType: mediaData.resourceType,
+    }) || 'image';
+
     const image = {
       id: generateId(),
-      url: imageData.url,
-      filename: imageData.filename || '',
-      domain: imageData.domain || extractDomain(imageData.url),
-      mimeType: imageData.mimeType || '',
-      size: imageData.size || 0,
-      width: imageData.width || 0,
-      height: imageData.height || 0,
-      alt: imageData.alt || '',
+      mediaType,
+      url: mediaData.url,
+      filename: mediaData.filename || '',
+      extension,
+      domain: mediaData.domain || extractDomain(mediaData.url),
+      mimeType: mediaData.mimeType || '',
+      size: mediaData.size || 0,
+      width: mediaData.width || 0,
+      height: mediaData.height || 0,
+      duration: mediaData.duration || 0,
+      alt: mediaData.alt || '',
       capturedAt: Date.now(),
-      tabUrl: imageData.tabUrl || '',
-      tabTitle: imageData.tabTitle || '',
+      tabUrl: mediaData.tabUrl || '',
+      tabTitle: mediaData.tabTitle || '',
       downloaded: false,
       status: 'pending', // pending | downloading | downloaded | failed
     };
@@ -207,6 +251,10 @@ class ImageStore {
     return [...this.images];
   }
 
+  getMedia() {
+    return this.getImages();
+  }
+
   /**
    * 根据 ID 获取图片对象
    * @param {string} id - 图片 ID
@@ -216,12 +264,20 @@ class ImageStore {
     return this.images.find(img => img.id === id);
   }
 
+  getMediaById(id) {
+    return this.getImageById(id);
+  }
+
   /**
    * 更新图片的下载状态
    * @param {string} id - 图片 ID
    * @param {string} status - 状态: 'pending' | 'downloading' | 'downloaded' | 'failed'
    */
   updateImageStatus(id, status) {
+    this.updateMediaStatus(id, status);
+  }
+
+  updateMediaStatus(id, status) {
     const img = this.getImageById(id);
     if (img) {
       const previousStatus = img.status;
@@ -313,16 +369,33 @@ class ImageStore {
    * @returns {Object[]} 过滤后的图片数组
    */
   getFilteredImages(filters = {}) {
-    const { domains = [], extensions = [], minSize = 0, search = '' } = filters;
+    return this.getFilteredMedia(filters);
+  }
+
+  getFilteredMedia(filters = {}) {
+    const {
+      domains = [],
+      extensions = [],
+      mediaType = '',
+      mediaTypes = [],
+      minSize = 0,
+      search = ''
+    } = filters;
+    const normalizedExtensions = extensions.map(ext => ext.replace(/^\./, '').toLowerCase());
+    const allowedMediaTypes = mediaType ? [mediaType] : mediaTypes;
+
     return this.images.filter(img => {
+      if (allowedMediaTypes.length > 0 && !allowedMediaTypes.includes(img.mediaType)) {
+        return false;
+      }
       // 域名过滤
       if (domains.length > 0 && !domains.includes(img.domain)) {
         return false;
       }
       // 扩展名过滤
-      if (extensions.length > 0) {
-        const ext = '.' + (img.filename.split('.').pop() || '').toLowerCase();
-        if (!extensions.includes(ext)) return false;
+      if (normalizedExtensions.length > 0) {
+        const ext = img.extension || getNormalizedExtension(img.filename);
+        if (!normalizedExtensions.includes(ext)) return false;
       }
       // 最小大小
       if (minSize > 0 && img.size < minSize) return false;
