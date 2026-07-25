@@ -70,12 +70,12 @@ def draw_icon(size):
 
     return pixels
 
-os.makedirs('assets', exist_ok=True)
+os.makedirs('src/assets', exist_ok=True)
 
 for size in [16, 48, 128]:
     px = draw_icon(size)
     png_data = create_png(size, size, px)
-    path = f'assets/icon-{size}.png'
+    path = f'src/assets/icon-{size}.png'
     with open(path, 'wb') as f:
         f.write(png_data)
     print(f'Generated {path} ({len(png_data)} bytes)')

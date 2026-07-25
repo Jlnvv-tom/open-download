@@ -1,15 +1,13 @@
 // background/index.js
 // Service Worker — 核心监听 + 消息处理
 
-import { MESSAGE_TYPES, IMAGE_MIME_TYPES, DEFAULT_SETTINGS } from '../lib/constants.js';
-import { store, ImageStore } from '../lib/store.js';
+import { MESSAGE_TYPES, IMAGE_MIME_TYPES } from '../lib/constants.js';
+import { store } from '../lib/store.js';
 import { DownloadManager } from '../lib/downloader.js';
 import {
   extractFilename,
   extractDomain,
   getExtension,
-  isImageUrl,
-  generateId
 } from '../lib/utils.js';
 
 // ─── 初始化 ────────────────────────────────────────────
@@ -27,8 +25,9 @@ let isListening = false;
  * 监听所有网络请求完成事件
  * 不区分网站，全局监听 <all_urls>
  */
-function onRequestCompleted(details) {
+async function onRequestCompleted(details) {
   if (!isListening) return;
+  await store.init();
 
   // 仅处理主资源类型为 image 的请求
   if (details.type !== 'image') return;
@@ -92,7 +91,7 @@ function onRequestCompleted(details) {
   let tabTitle = '';
 
   if (details.tabId && details.tabId !== -1) {
-    chrome.tabs.get(details.tabId).then(tab => {
+    await chrome.tabs.get(details.tabId).then(tab => {
       tabUrl = tab.url || '';
       tabTitle = tab.title || '';
     }).catch(() => {});
@@ -160,7 +159,7 @@ function stopListening() {
 
 // ─── 消息处理 ──────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+function handleRuntimeMessage(message, sender, sendResponse) {
   (async () => {
     try {
       switch (message.type) {
@@ -264,6 +263,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case MESSAGE_TYPES.CONTENT_IMAGES_UPDATE: {
+          await store.init();
+          const images = message.payload?.images || [];
+          const updated = images.reduce((count, image) => (
+            count + store.updateImageDetailsByUrl(image.url, {
+              width: image.width,
+              height: image.height,
+              alt: image.alt,
+            })
+          ), 0);
+          sendResponse({ success: true, updated });
+          break;
+        }
+
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }
@@ -274,7 +287,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   })();
 
   return true; // 保持 channel 开通用于异步响应
-});
+}
+
+chrome.runtime.onMessage.addListener(handleRuntimeMessage);
 
 // ─── 扩展安装/更新 ────────────────────────────────────
 
@@ -341,3 +356,10 @@ chrome.runtime.onStartup.addListener(async () => {
   }
   console.log('[OpenDownload] Service Worker 已启动');
 });
+
+export {
+  handleRuntimeMessage,
+  onRequestCompleted,
+  startListening,
+  stopListening,
+};

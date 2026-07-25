@@ -16,10 +16,16 @@ Chrome 扩展 (Manifest V3) — 全局监听网络请求，自动识别并批量
 
 ### 安装到 Chrome
 
+先生成插件产物：
+
+```bash
+npm run build
+```
+
 1. 打开 `chrome://extensions`
 2. 开启「开发者模式」
 3. 点击「加载已解压的扩展程序」
-4. 选择本项目根目录
+4. 选择本项目的 `dist/` 目录
 
 ### 使用
 
@@ -32,26 +38,56 @@ Chrome 扩展 (Manifest V3) — 全局监听网络请求，自动识别并批量
 
 ```
 open-download/
-├── manifest.json          # MV3 清单文件
-├── background/
-│   └── index.js           # Service Worker — 核心监听 + 消息处理
-├── popup/
-│   ├── index.html         # 弹出窗口 UI
-│   ├── popup.css          # 弹出窗口样式
-│   └── popup.js           # 弹出窗口逻辑
-├── options/
-│   ├── index.html         # 设置页面
-│   ├── options.css        # 设置页面样式
-│   └── options.js         # 设置页面逻辑
-├── content/
-│   └── index.js           # Content Script — 补充图片尺寸信息
-├── lib/
-│   ├── constants.js       # 常量定义
-│   ├── utils.js           # 工具函数
-│   ├── store.js           # 图片存储管理 (chrome.storage)
-│   └── downloader.js      # 批量下载管理器
-└── assets/                # 图标资源
+├── src/                   # 扩展源码，会被复制到 dist/
+│   ├── manifest.json      # MV3 清单文件
+│   ├── background/
+│   │   └── index.js       # Service Worker — 核心监听 + 消息处理
+│   ├── popup/
+│   │   ├── index.html     # 弹出窗口 UI
+│   │   ├── popup.css      # 弹出窗口样式
+│   │   └── popup.js       # 弹出窗口逻辑
+│   ├── options/
+│   │   ├── index.html     # 设置页面
+│   │   ├── options.css    # 设置页面样式
+│   │   └── options.js     # 设置页面逻辑
+│   ├── content/
+│   │   └── index.js       # Content Script — 补充图片尺寸信息
+│   ├── lib/
+│   │   ├── constants.js   # 常量定义
+│   │   ├── utils.js       # 工具函数
+│   │   ├── store.js       # 图片存储管理 (chrome.storage)
+│   │   └── downloader.js  # 批量下载管理器
+│   └── assets/            # 图标资源
+├── scripts/               # 构建、打包、图标生成脚本
+├── __tests__/             # Jest 单元测试
+└── dist/                  # 构建产物，加载到 Chrome 的目录
 ```
+
+## 开发命令
+
+```bash
+npm run build
+```
+
+清理并生成 `dist/` 插件目录。
+
+```bash
+npm run dev
+```
+
+生成 `dist/`，并提示在 Chrome 中加载该目录。
+
+```bash
+npm test
+```
+
+运行 Jest 单元测试。
+
+```bash
+npm run pack
+```
+
+构建 `dist/` 并生成 `packages/open-download-<version>.zip`。
 
 ## 技术要点
 

@@ -104,6 +104,7 @@ export function generateFilename(url, namingStrategy, index, domain) {
   const originalName = extractFilename(url);
   const ext = getExtension(originalName) || '.jpg';
   const baseName = originalName.replace(ext, '') || 'image';
+  const filenameWithExtension = getExtension(originalName) ? originalName : `${baseName}${ext}`;
 
   switch (namingStrategy) {
     case 'domain':
@@ -112,7 +113,7 @@ export function generateFilename(url, namingStrategy, index, domain) {
       return sanitizeFilename(`img_${String(index).padStart(4, '0')}${ext}`);
     case 'original':
     default:
-      return sanitizeFilename(originalName);
+      return sanitizeFilename(filenameWithExtension);
   }
 }
 

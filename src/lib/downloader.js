@@ -57,7 +57,7 @@ class DownloadManager {
    * @param {string} image.domain - 图片域名
    * @returns {Promise<Object>} 下载结果对象 { success, downloadId?, error? }
    */
-  async downloadImage(image) {
+  async downloadImage(image, index = 0) {
     const settings = this.store.getSettings();
 
     try {
@@ -67,7 +67,7 @@ class DownloadManager {
       const filename = generateFilename(
         image.url,
         settings.fileNaming,
-        this.queue.length,
+        index,
         image.domain
       );
 
@@ -135,16 +135,16 @@ class DownloadManager {
     this.setConcurrency(settings.concurrency);
 
     const results = [];
-    const batch = [...images];
+    const batch = images.map((image, index) => ({ image, index }));
 
     const worker = async () => {
       while (batch.length > 0) {
-        const image = batch.shift();
-        if (!image) break;
+        const item = batch.shift();
+        if (!item) break;
 
         this.active++;
-        const result = await this.downloadImage(image);
-        results.push({ image, ...result });
+        const result = await this.downloadImage(item.image, item.index);
+        results.push({ image: item.image, ...result });
         this.active--;
 
         // 间隔避免过于频繁

@@ -6,22 +6,25 @@
 
 Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听网页网络请求中的图片资源，并在 Popup 中筛选、预览和批量下载。
 
-项目没有前端构建流程，源码会作为 unpacked extension 直接被 Chrome 加载。修改后通常需要在 `chrome://extensions` 中重新加载扩展来验证。
+项目采用轻量构建流程：运行时源码放在 `src/`，`npm run build` 会生成可加载到 Chrome 的 `dist/` 目录。修改源码后需要重新构建，并在 `chrome://extensions` 中重新加载扩展。
 
 ## 目录职责
 
-- `manifest.json`: MV3 扩展清单，声明权限、后台 service worker、popup、options、content script 和图标。
-- `background/index.js`: 核心后台逻辑，包括 `webRequest` 监听、状态恢复、右键菜单、消息路由和下载触发。
-- `lib/constants.js`: 全局常量、默认设置和 message type 定义。
-- `lib/store.js`: `chrome.storage.local` 上的图片、设置和统计数据管理。
-- `lib/downloader.js`: 批量下载、并发控制和下载状态更新。
-- `lib/utils.js`: URL、文件名、大小格式化、去重 key 等通用工具。
-- `popup/`: 弹窗页面 UI、样式和交互逻辑。
-- `options/`: 设置页 UI、样式和交互逻辑。
-- `content/index.js`: 页面内图片尺寸收集和动态图片观察。
-- `assets/`: 扩展图标。
+- `src/manifest.json`: MV3 扩展清单，声明权限、后台 service worker、popup、options、content script 和图标。
+- `src/background/index.js`: 核心后台逻辑，包括 `webRequest` 监听、状态恢复、右键菜单、消息路由和下载触发。
+- `src/lib/constants.js`: 全局常量、默认设置和 message type 定义。
+- `src/lib/store.js`: `chrome.storage.local` 上的图片、设置和统计数据管理。
+- `src/lib/downloader.js`: 批量下载、并发控制和下载状态更新。
+- `src/lib/utils.js`: URL、文件名、大小格式化、去重 key 等通用工具。
+- `src/popup/`: 弹窗页面 UI、样式和交互逻辑。
+- `src/options/`: 设置页 UI、样式和交互逻辑。
+- `src/content/index.js`: 页面内图片尺寸收集和动态图片观察。
+- `src/assets/`: 扩展图标。
+- `dist/`: `npm run build` 生成的 Chrome 加载目录，不手动编辑。
+- `scripts/build.js`: 清理并复制 `src/` 到 `dist/`，同时校验 manifest 引用文件。
+- `scripts/pack.js`: 构建后生成 zip 包到 `packages/`。
 - `scripts/gen-icons.py`: 生成 PNG 图标的脚本。
-- `specs/`: 预留的规格或说明目录，当前为空。
+- `specs/`: 功能、重构和 bugfix 设计文档目录。
 
 ## 常用命令
 
@@ -29,29 +32,49 @@ Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听
 npm run dev
 ```
 
-只会提示在 Chrome 中加载 unpacked 扩展，不会启动 dev server。
+会生成 `dist/`，并提示在 Chrome 中加载 `dist/` 目录；不会启动 dev server。
+
+```bash
+npm run build
+```
+
+清理并生成 `dist/`。Chrome 应加载该目录，而不是项目根目录。
+
+```bash
+npm test
+```
+
+运行 Jest 单元测试。当前测试覆盖 `src/lib/` 工具、存储、下载管理器，以及部分 background 消息处理。
+
+```bash
+npm run test:watch
+npm run test:coverage
+```
+
+分别用于监听模式和覆盖率测试。
 
 ```bash
 python3 scripts/gen-icons.py
 ```
 
-重新生成 `assets/icon-16.png`、`assets/icon-48.png`、`assets/icon-128.png`。
+重新生成 `src/assets/icon-16.png`、`src/assets/icon-48.png`、`src/assets/icon-128.png`。
 
 ```bash
 npm run pack
 ```
 
-当前 `package.json` 声明了该命令，但仓库里尚未包含 `scripts/pack.js`。除非先实现该脚本，否则不要假设它可用。
+构建 `dist/` 并生成 `packages/open-download-<version>.zip`。
 
 ## 开发与验证
 
 1. 在 Chrome 打开 `chrome://extensions`。
 2. 开启「开发者模式」。
-3. 选择本项目根目录作为「加载已解压的扩展程序」。
-4. 修改代码后点击扩展卡片上的重新加载按钮。
-5. 验证 Popup、Options、后台日志和实际下载行为。
+3. 运行 `npm run build`。
+4. 选择本项目的 `dist/` 目录作为「加载已解压的扩展程序」。
+5. 修改代码后重新运行 `npm run build`，再点击扩展卡片上的重新加载按钮。
+6. 验证 Popup、Options、后台日志和实际下载行为。
 
-目前仓库没有自动化测试、lint 或 bundler 配置。做功能变更时，至少手动验证：
+当前仓库有 Jest 自动化测试和构建脚本，但没有 lint 或 bundler 配置。做功能变更时，先运行 `npm test` 和 `npm run build`；涉及真实 Chrome API、Popup、Options 或扩展权限时，还需要手动验证：
 
 - Popup 可以打开，监听开关能更新状态。
 - 开启监听后浏览普通网页能捕获图片。
@@ -62,10 +85,10 @@ npm run pack
 ## 代码约定
 
 - 使用原生 ES modules，保持相对路径导入，例如 `../lib/constants.js`。
-- 保持无构建依赖的结构，不引入框架或打包器，除非用户明确要求。
+- 保持轻量构建结构，不引入框架或打包器，除非用户明确要求。
 - 面向 Chrome MV3 API 编写代码，后台脚本是 service worker，需注意生命周期和异步消息响应。
 - `chrome.runtime.onMessage.addListener` 中如需异步 `sendResponse`，保留 `return true`。
-- 新的跨模块消息类型先添加到 `lib/constants.js` 的 `MESSAGE_TYPES`，再在发送端和接收端使用。
+- 新的跨模块消息类型先添加到 `src/lib/constants.js` 的 `MESSAGE_TYPES`，再在发送端和接收端使用。
 - 设置默认值放在 `DEFAULT_SETTINGS`，存储键放在 `STORAGE_KEYS`。
 - 下载和存储状态应通过 `ImageStore`、`DownloadManager` 这两个边界更新，避免 UI 直接改 storage 结构。
 - 避免把大量业务逻辑写进 HTML；Popup 和 Options 的行为分别放在对应 JS 文件。
@@ -74,10 +97,10 @@ npm run pack
 ## Chrome 扩展注意事项
 
 - `webRequest` 在 MV3 中用于观察请求，不要实现阻塞或拦截式逻辑，除非同步调整权限和架构。
-- `background/index.js` 中监听器重复注册会造成重复捕获；修改启动/停止逻辑时确认 `isListening` 的语义。
+- `src/background/index.js` 中监听器重复注册会造成重复捕获；修改启动/停止逻辑时确认 `isListening` 的语义。
 - `chrome.storage.local` 是异步 API，但当前 `store.addImage()` 内部有 fire-and-forget 保存行为。涉及一致性或批量更新时要谨慎。
-- `content/index.js` 会向 background 发送 `CONTENT_IMAGES_UPDATE`，当前 background 尚未处理这个 message type。添加尺寸补全功能时应补齐消息处理。
-- `lib/utils.js` 的 `isImageUrl()` 使用 `IMAGE_EXTENSIONS`，如启用或修改该函数，确认常量导入正确。
+- `src/content/index.js` 会向 background 发送 `CONTENT_IMAGES_UPDATE`，`src/background/index.js` 会将尺寸信息补充到已捕获图片记录。
+- `src/lib/utils.js` 的 `isImageUrl()` 使用 `IMAGE_EXTENSIONS`，如修改该函数，确认常量导入正确。
 
 ## UI 修改指南
 
@@ -125,7 +148,7 @@ npm run pack
 
 - 是否需要新增或复用 `MESSAGE_TYPES`？
 - 是否影响 `chrome.storage.local` 中已保存的数据兼容性？
-- 是否会增加 MV3 权限？如果会，更新 `manifest.json` 和 README。
+- 是否会增加 MV3 权限？如果会，更新 `src/manifest.json` 和 README。
 - 是否会改变下载文件名或目录？确认 `chrome.downloads.download` 的限制。
 - 是否需要在 Popup、Options、background 三处同步更新？
 

@@ -16,9 +16,43 @@ class ImageStore {
    */
   constructor() {
     this.images = [];       // 内存缓存
-    this.settings = { ...DEFAULT_SETTINGS };
+    this.settings = this._mergeSettings();
     this.stats = { total: 0, downloaded: 0, failed: 0 };
     this._loaded = false;
+  }
+
+  _mergeSettings(partial = {}) {
+    return {
+      ...DEFAULT_SETTINGS,
+      ...partial,
+      filters: {
+        ...DEFAULT_SETTINGS.filters,
+        ...(partial.filters || {}),
+        minDimensions: {
+          ...DEFAULT_SETTINGS.filters.minDimensions,
+          ...(partial.filters?.minDimensions || {}),
+        },
+      },
+    };
+  }
+
+  _normalizeImage(image) {
+    return {
+      id: image.id || generateId(),
+      url: image.url || '',
+      filename: image.filename || '',
+      domain: image.domain || extractDomain(image.url || ''),
+      mimeType: image.mimeType || '',
+      size: image.size || 0,
+      width: image.width || 0,
+      height: image.height || 0,
+      alt: image.alt || '',
+      capturedAt: image.capturedAt || Date.now(),
+      tabUrl: image.tabUrl || '',
+      tabTitle: image.tabTitle || '',
+      downloaded: Boolean(image.downloaded),
+      status: image.status || 'pending',
+    };
   }
 
   /**
@@ -43,7 +77,7 @@ class ImageStore {
    */
   async loadSettings() {
     const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
-    this.settings = { ...DEFAULT_SETTINGS, ...result[STORAGE_KEYS.SETTINGS] };
+    this.settings = this._mergeSettings(result[STORAGE_KEYS.SETTINGS]);
   }
 
   /**
@@ -52,7 +86,14 @@ class ImageStore {
    * @returns {Promise<Object>} 更新后的完整设置对象
    */
   async saveSettings(partial) {
-    this.settings = { ...this.settings, ...partial };
+    this.settings = this._mergeSettings({
+      ...this.settings,
+      ...partial,
+      filters: {
+        ...(this.settings.filters || {}),
+        ...(partial.filters || {}),
+      },
+    });
     await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: this.settings });
     return this.settings;
   }
@@ -73,7 +114,7 @@ class ImageStore {
    */
   async loadImages() {
     const result = await chrome.storage.local.get(STORAGE_KEYS.CAPTURED_IMAGES);
-    this.images = result[STORAGE_KEYS.CAPTURED_IMAGES] || [];
+    this.images = (result[STORAGE_KEYS.CAPTURED_IMAGES] || []).map(image => this._normalizeImage(image));
   }
 
   /**
@@ -121,6 +162,7 @@ class ImageStore {
       size: imageData.size || 0,
       width: imageData.width || 0,
       height: imageData.height || 0,
+      alt: imageData.alt || '',
       capturedAt: Date.now(),
       tabUrl: imageData.tabUrl || '',
       tabTitle: imageData.tabTitle || '',
@@ -182,16 +224,54 @@ class ImageStore {
   updateImageStatus(id, status) {
     const img = this.getImageById(id);
     if (img) {
+      const previousStatus = img.status;
       img.status = status;
       if (status === 'downloaded') {
         img.downloaded = true;
-        this.stats.downloaded++;
+        if (previousStatus !== 'downloaded') {
+          this.stats.downloaded++;
+        }
       } else if (status === 'failed') {
-        this.stats.failed++;
+        if (previousStatus !== 'failed') {
+          this.stats.failed++;
+        }
       }
       this.saveImages();
       this.saveStats();
     }
+  }
+
+  updateImageDetailsByUrl(url, details = {}) {
+    const key = urlDedupeKey(url);
+    let updatedCount = 0;
+
+    for (const img of this.images) {
+      if (urlDedupeKey(img.url) !== key) continue;
+
+      let changed = false;
+      if (details.width > 0 && img.width !== details.width) {
+        img.width = details.width;
+        changed = true;
+      }
+      if (details.height > 0 && img.height !== details.height) {
+        img.height = details.height;
+        changed = true;
+      }
+      if (details.alt && img.alt !== details.alt) {
+        img.alt = details.alt;
+        changed = true;
+      }
+
+      if (changed) {
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount > 0) {
+      this.saveImages();
+    }
+
+    return updatedCount;
   }
 
   // ─── Stats ───
@@ -257,4 +337,5 @@ class ImageStore {
 }
 
 // 单例
+export { ImageStore };
 export const store = new ImageStore();
