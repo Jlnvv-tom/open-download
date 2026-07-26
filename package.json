@@ -1,6 +1,6 @@
 {
   "name": "open-download",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Chrome 扩展 — 全局监听网络请求，自动识别并批量下载图片和视频",
   "type": "module",
   "scripts": {

@@ -20,13 +20,30 @@
 
       results.push({
         url: src,
+        previewUrl: src,
         width: img.naturalWidth || img.width || 0,
         height: img.naturalHeight || img.height || 0,
         alt: img.alt || '',
+        complete: img.complete,
       });
     });
 
     return results;
+  }
+
+  let sendTimer = null;
+
+  function sendImageUpdate(delay = 120) {
+    clearTimeout(sendTimer);
+    sendTimer = setTimeout(() => {
+      const images = collectImageElements();
+      if (images.length === 0) return;
+
+      chrome.runtime.sendMessage({
+        type: 'CONTENT_IMAGES_UPDATE',
+        payload: { images, url: location.href },
+      }).catch(() => {});
+    }, delay);
   }
 
   // 监听来自 background 的请求
@@ -60,15 +77,7 @@
       }
 
       if (hasNewImages) {
-        // 延迟收集，等待图片加载
-        setTimeout(() => {
-          const images = collectImageElements();
-          // 仅发送新增图片的尺寸信息给 background
-          chrome.runtime.sendMessage({
-            type: 'CONTENT_IMAGES_UPDATE',
-            payload: { images, url: location.href },
-          }).catch(() => {});
-        }, 500);
+        sendImageUpdate(500);
       }
     });
 
@@ -76,12 +85,23 @@
       childList: true,
       subtree: true,
     });
+
+    document.addEventListener('load', (event) => {
+      if (event.target?.tagName === 'IMG') {
+        sendImageUpdate(80);
+      }
+    }, true);
+
+    sendImageUpdate(0);
+    setTimeout(() => sendImageUpdate(0), 800);
   }
 
-  // 页面加载完成后启动观察
-  if (document.readyState === 'complete') {
+  // body 可用后尽早启动，避免等整页 load 才同步已显示图片。
+  if (document.body) {
     startObserving();
   } else {
-    window.addEventListener('load', startObserving);
+    window.addEventListener('DOMContentLoaded', startObserving, { once: true });
   }
+
+  window.addEventListener('load', () => sendImageUpdate(0), { once: true });
 })();

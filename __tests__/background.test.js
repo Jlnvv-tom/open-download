@@ -47,6 +47,9 @@ describe('background message handler', () => {
 
   test('应该处理 Content Script 图片尺寸更新并写回 Store', async () => {
     await store.init();
+    const sendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = jest.fn(async () => ({ success: true }));
+
     const image = store.addImage({
       url: 'https://cdn.example.com/images/photo.jpg?cache=1',
       filename: 'photo.jpg',
@@ -61,7 +64,8 @@ describe('background message handler', () => {
             url: 'https://cdn.example.com/images/photo.jpg?cache=2',
             width: 1024,
             height: 768,
-            alt: '产品图'
+            alt: '产品图',
+            previewUrl: 'https://cdn.example.com/images/photo-large.jpg?cache=2'
           }
         ]
       }
@@ -71,8 +75,39 @@ describe('background message handler', () => {
     expect(store.getImageById(image.id)).toMatchObject({
       width: 1024,
       height: 768,
-      alt: '产品图'
+      alt: '产品图',
+      previewUrl: 'https://cdn.example.com/images/photo-large.jpg?cache=2'
     });
+    expect(global.chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: MESSAGE_TYPES.MEDIA_DETAILS_UPDATED,
+      payload: { images: store.getImages() }
+    });
+
+    global.chrome.runtime.sendMessage = sendMessage;
+  });
+
+  test('Content Script 没有匹配更新时不应该广播媒体详情', async () => {
+    await store.init();
+    const sendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = jest.fn(async () => ({ success: true }));
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.CONTENT_IMAGES_UPDATE,
+      payload: {
+        images: [
+          {
+            url: 'https://cdn.example.com/images/unknown.jpg',
+            width: 320,
+            height: 240
+          }
+        ]
+      }
+    });
+
+    expect(response).toEqual({ success: true, updated: 0 });
+    expect(global.chrome.runtime.sendMessage).not.toHaveBeenCalled();
+
+    global.chrome.runtime.sendMessage = sendMessage;
   });
 
   test('未知消息类型应该返回失败响应', async () => {

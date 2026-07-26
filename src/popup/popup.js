@@ -51,6 +51,7 @@ let activeFormat = 'all';
 let viewMode = 'list';
 let settings = null;
 let contentSize = 132;
+const EAGER_PREVIEW_COUNT = 36;
 
 // ─── 消息通信 ──────────────────────────────────────────
 
@@ -203,6 +204,10 @@ function bindEvents() {
       allMedia.push(normalizeMedia(message.payload));
       renderMedia();
     }
+    if (message.type === MESSAGE_TYPES.MEDIA_DETAILS_UPDATED) {
+      allMedia = (message.payload?.images || allMedia).map(normalizeMedia);
+      renderMedia();
+    }
   });
 }
 
@@ -222,6 +227,7 @@ function normalizeMedia(media) {
   return {
     ...media,
     mediaType: media.mediaType || MEDIA_TYPES.IMAGE,
+    previewUrl: media.previewUrl || media.url || '',
     extension: (media.extension || getNormalizedExtension(media.filename || media.url || '')).replace(/^\./, ''),
   };
 }
@@ -381,7 +387,7 @@ function renderFormatTabs() {
 }
 
 function renderListView(mediaItems) {
-  const html = [...mediaItems].reverse().map(media => {
+  const html = [...mediaItems].reverse().map((media, index) => {
     const isSelected = selectedIds.has(media.id);
     const statusClass = media.status || 'pending';
     const statusText = getStatusText(statusClass);
@@ -389,7 +395,7 @@ function renderListView(mediaItems) {
     return `
       <div class="image-item ${isSelected ? 'selected' : ''}" data-id="${media.id}">
         <div class="checkbox" data-action="select"></div>
-        ${renderThumb(media)}
+        ${renderThumb(media, index)}
         <div class="image-info">
           <div class="image-name" title="${escapeHtml(media.filename)}">${escapeHtml(media.filename || media.url)}</div>
           <div class="image-meta">
@@ -414,7 +420,7 @@ function renderListView(mediaItems) {
 }
 
 function renderCardView(mediaItems) {
-  const html = [...mediaItems].reverse().map(media => {
+  const html = [...mediaItems].reverse().map((media, index) => {
     const isSelected = selectedIds.has(media.id);
     const badge = media.width > 0 && media.height > 0
       ? `${media.width}x${media.height}`
@@ -423,7 +429,7 @@ function renderCardView(mediaItems) {
     return `
       <div class="media-card ${isSelected ? 'selected' : ''}" data-id="${media.id}" title="${escapeHtml(media.filename || media.url)}">
         <div class="media-card-check">✓</div>
-        ${renderCardPreview(media)}
+        ${renderCardPreview(media, index)}
         <div class="media-card-badge">${escapeHtml(badge)}</div>
       </div>
     `;
@@ -433,7 +439,7 @@ function renderCardView(mediaItems) {
   bindMediaItemEvents('.media-card');
 }
 
-function renderThumb(media) {
+function renderThumb(media, index = 0) {
   if (media.mediaType === MEDIA_TYPES.VIDEO) {
     return `
       <div class="image-thumb-placeholder">
@@ -444,8 +450,11 @@ function renderThumb(media) {
     `;
   }
 
+  const previewUrl = getPreviewUrl(media);
+  const loading = getPreviewLoadingAttrs(index);
+
   return `
-    <img class="image-thumb" src="${escapeHtml(media.url)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <img class="image-thumb" src="${escapeHtml(previewUrl)}" alt="" ${loading} decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
     <div class="image-thumb-placeholder" style="display:none;">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -456,11 +465,14 @@ function renderThumb(media) {
   `;
 }
 
-function renderCardPreview(media) {
+function renderCardPreview(media, index = 0) {
+  const previewUrl = getPreviewUrl(media);
+  const loading = getPreviewLoadingAttrs(index);
+
   if (media.mediaType === MEDIA_TYPES.VIDEO) {
     return `
       <div class="media-card-preview">
-        <video src="${escapeHtml(media.url)}" muted preload="metadata"></video>
+        <video src="${escapeHtml(previewUrl)}" muted preload="${index < EAGER_PREVIEW_COUNT ? 'metadata' : 'none'}"></video>
         <div class="media-card-placeholder" style="display:none;">视频 ${escapeHtml(media.extension || '')}</div>
       </div>
     `;
@@ -468,10 +480,20 @@ function renderCardPreview(media) {
 
   return `
     <div class="media-card-preview">
-      <img src="${escapeHtml(media.url)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <img src="${escapeHtml(previewUrl)}" alt="" ${loading} decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="media-card-placeholder" style="display:none;">图片 ${escapeHtml(media.extension || '')}</div>
     </div>
   `;
+}
+
+function getPreviewUrl(media) {
+  return media.previewUrl || media.url || '';
+}
+
+function getPreviewLoadingAttrs(index) {
+  return index < EAGER_PREVIEW_COUNT
+    ? 'loading="eager" fetchpriority="high"'
+    : 'loading="lazy" fetchpriority="low"';
 }
 
 function bindMediaItemEvents(selector) {

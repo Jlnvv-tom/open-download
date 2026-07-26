@@ -60,6 +60,7 @@ class ImageStore {
       id: image.id || generateId(),
       mediaType,
       url: image.url || '',
+      previewUrl: image.previewUrl || image.url || '',
       filename: image.filename || '',
       extension,
       domain: image.domain || extractDomain(image.url || ''),
@@ -198,6 +199,7 @@ class ImageStore {
       id: generateId(),
       mediaType,
       url: mediaData.url,
+      previewUrl: mediaData.previewUrl || mediaData.url,
       filename: mediaData.filename || '',
       extension,
       domain: mediaData.domain || extractDomain(mediaData.url),
@@ -315,6 +317,10 @@ class ImageStore {
       }
       if (details.alt && img.alt !== details.alt) {
         img.alt = details.alt;
+        changed = true;
+      }
+      if (details.previewUrl && img.previewUrl !== details.previewUrl) {
+        img.previewUrl = details.previewUrl;
         changed = true;
       }
 

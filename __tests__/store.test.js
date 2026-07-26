@@ -74,6 +74,7 @@ describe('ImageStore', () => {
     test('应该添加图片', () => {
       const image = testStore.addImage({
         url: 'https://example.com/test.jpg',
+        previewUrl: 'https://example.com/preview.jpg',
         filename: 'test.jpg',
         domain: 'example.com',
         mimeType: 'image/jpeg',
@@ -83,6 +84,7 @@ describe('ImageStore', () => {
       expect(image).toBeDefined();
       expect(image.id).toBeDefined();
       expect(image.url).toBe('https://example.com/test.jpg');
+      expect(image.previewUrl).toBe('https://example.com/preview.jpg');
       expect(image.mediaType).toBe('image');
       expect(image.extension).toBe('jpg');
       expect(image.status).toBe('pending');
@@ -240,14 +242,16 @@ describe('ImageStore', () => {
       const updated = testStore.updateImageDetailsByUrl('https://cdn.example.com/path/photo.jpg?cache=2', {
         width: 800,
         height: 600,
-        alt: '封面图'
+        alt: '封面图',
+        previewUrl: 'https://cdn.example.com/path/photo-large.jpg'
       });
 
       expect(updated).toBe(1);
       expect(testStore.getImageById(image.id)).toMatchObject({
         width: 800,
         height: 600,
-        alt: '封面图'
+        alt: '封面图',
+        previewUrl: 'https://cdn.example.com/path/photo-large.jpg'
       });
     });
 

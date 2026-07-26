@@ -266,8 +266,17 @@ function handleRuntimeMessage(message, sender, sendResponse) {
               width: image.width,
               height: image.height,
               alt: image.alt,
+              previewUrl: image.previewUrl,
             })
           ), 0);
+
+          if (updated > 0) {
+            chrome.runtime.sendMessage({
+              type: MESSAGE_TYPES.MEDIA_DETAILS_UPDATED,
+              payload: { images: store.getImages() },
+            }).catch(() => {});
+          }
+
           sendResponse({ success: true, updated });
           break;
         }
