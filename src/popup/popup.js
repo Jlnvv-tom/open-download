@@ -50,7 +50,8 @@ let activeMediaType = MEDIA_TYPES.IMAGE;
 let activeFormat = 'all';
 let viewMode = 'list';
 let settings = null;
-let contentSize = 132;
+const DEFAULT_CONTENT_SIZE = 104;
+let contentSize = DEFAULT_CONTENT_SIZE;
 const EAGER_PREVIEW_COUNT = 36;
 
 // ─── 消息通信 ──────────────────────────────────────────
@@ -71,7 +72,10 @@ async function init() {
     settings = settingsRes.settings;
     activeMediaType = settings.ui?.mediaType || MEDIA_TYPES.IMAGE;
     viewMode = settings.ui?.viewMode || 'list';
-    contentSize = normalizeContentSize(settings.ui?.contentSize || 132);
+    const savedContentSize = settings.ui?.contentSize;
+    contentSize = savedContentSize === undefined || savedContentSize === 132
+      ? DEFAULT_CONTENT_SIZE
+      : normalizeContentSize(savedContentSize);
   }
 
   const status = await sendMessage(MESSAGE_TYPES.GET_STATUS);
@@ -245,8 +249,9 @@ function saveUiSettings() {
 }
 
 function normalizeContentSize(value) {
-  const parsed = parseInt(value, 10) || 132;
-  return Math.max(88, Math.min(220, parsed));
+  const parsed = parseInt(value, 10);
+  const size = Number.isFinite(parsed) ? parsed : DEFAULT_CONTENT_SIZE;
+  return Math.max(84, Math.min(180, size));
 }
 
 function updateContentSize(value, clampInput) {
@@ -422,15 +427,12 @@ function renderListView(mediaItems) {
 function renderCardView(mediaItems) {
   const html = [...mediaItems].reverse().map((media, index) => {
     const isSelected = selectedIds.has(media.id);
-    const badge = media.width > 0 && media.height > 0
-      ? `${media.width}x${media.height}`
-      : `${media.extension || media.mediaType} ${formatSize(media.size)}`;
 
     return `
       <div class="media-card ${isSelected ? 'selected' : ''}" data-id="${media.id}" title="${escapeHtml(media.filename || media.url)}">
         <div class="media-card-check">✓</div>
         ${renderCardPreview(media, index)}
-        <div class="media-card-badge">${escapeHtml(badge)}</div>
+        ${renderCardInfo(media)}
       </div>
     `;
   }).join('');
@@ -484,6 +486,30 @@ function renderCardPreview(media, index = 0) {
       <div class="media-card-placeholder" style="display:none;">图片 ${escapeHtml(media.extension || '')}</div>
     </div>
   `;
+}
+
+function renderCardInfo(media) {
+  const dimensions = getDimensionsText(media);
+  const size = formatSize(media.size);
+  const type = (media.extension || media.mediaType || '').toUpperCase();
+
+  return `
+    <div class="media-card-info">
+      <div class="media-card-name">${escapeHtml(media.filename || media.url || '未知资源')}</div>
+      <div class="media-card-meta">
+        <span>${escapeHtml(dimensions)}</span>
+        <span>${escapeHtml(size)}</span>
+        <span>${escapeHtml(type)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function getDimensionsText(media) {
+  if (media.width > 0 && media.height > 0) {
+    return `${media.width}x${media.height}`;
+  }
+  return '未知尺寸';
 }
 
 function getPreviewUrl(media) {

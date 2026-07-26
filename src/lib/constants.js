@@ -82,7 +82,7 @@ export const DEFAULT_SETTINGS = {
   ui: {
     viewMode: 'list',
     mediaType: 'image',
-    contentSize: 132,
+    contentSize: 104,
   },
   filters: {
     domains: [],          // 排除的域名列表
