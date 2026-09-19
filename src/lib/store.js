@@ -1,7 +1,7 @@
 // lib/store.js
 // 图片存储管理 — 使用 chrome.storage.local
 
-import { STORAGE_KEYS, DEFAULT_SETTINGS } from './constants.js';
+import { STORAGE_KEYS, DEFAULT_SETTINGS, MAX_CAPTURED_IMAGES } from './constants.js';
 import {
   detectMediaType,
   extensionFromMimeType,
@@ -24,7 +24,7 @@ class ImageStore {
   constructor() {
     this.images = [];       // 内存缓存
     this.settings = this._mergeSettings();
-    this.stats = { total: 0, downloaded: 0, failed: 0 };
+    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0 };
     this._loaded = false;
   }
 
@@ -146,14 +146,17 @@ class ImageStore {
 
   /**
    * 保存图片列表到 chrome.storage
-   * 自动限制最大数量为 5000，防止存储溢出
+   * 超过 MAX_CAPTURED_IMAGES 时截断保留最新记录，并累计 truncated 统计
    * @returns {Promise<void>}
    */
   async saveImages() {
     // 限制最大存储数量，防止 storage 溢出
-    const MAX_IMAGES = 5000;
-    if (this.images.length > MAX_IMAGES) {
-      this.images = this.images.slice(-MAX_IMAGES);
+    if (this.images.length > MAX_CAPTURED_IMAGES) {
+      const removed = this.images.length - MAX_CAPTURED_IMAGES;
+      this.images = this.images.slice(-MAX_CAPTURED_IMAGES);
+      // 截断不回退 total，单独累计供 UI 提示
+      this.stats.truncated = (this.stats.truncated || 0) + removed;
+      this.saveStats();
     }
     await chrome.storage.local.set({ [STORAGE_KEYS.CAPTURED_IMAGES]: this.images });
   }
@@ -240,7 +243,7 @@ class ImageStore {
    */
   clearAll() {
     this.images = [];
-    this.stats = { total: 0, downloaded: 0, failed: 0 };
+    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0 };
     this.saveImages();
     this.saveStats();
   }
@@ -274,16 +277,18 @@ class ImageStore {
    * 更新图片的下载状态
    * @param {string} id - 图片 ID
    * @param {string} status - 状态: 'pending' | 'downloading' | 'downloaded' | 'failed'
+   * @param {string} [errorMsg=''] - 失败原因（failed 时记录，其他状态清空）
    */
-  updateImageStatus(id, status) {
-    this.updateMediaStatus(id, status);
+  updateImageStatus(id, status, errorMsg = '') {
+    this.updateMediaStatus(id, status, errorMsg);
   }
 
-  updateMediaStatus(id, status) {
+  updateMediaStatus(id, status, errorMsg = '') {
     const img = this.getImageById(id);
     if (img) {
       const previousStatus = img.status;
       img.status = status;
+      img.errorMsg = errorMsg || '';
       if (status === 'downloaded') {
         img.downloaded = true;
         if (previousStatus !== 'downloaded') {
@@ -344,7 +349,7 @@ class ImageStore {
    */
   async loadStats() {
     const result = await chrome.storage.local.get(STORAGE_KEYS.STATS);
-    this.stats = result[STORAGE_KEYS.STATS] || { total: 0, downloaded: 0, failed: 0 };
+    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0, ...(result[STORAGE_KEYS.STATS] || {}) };
   }
 
   /**

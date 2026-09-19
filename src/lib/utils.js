@@ -158,23 +158,32 @@ export function sanitizeFilename(filename) {
 
 /**
  * 根据 URL 生成文件名
- * @param {string} url - 图片 URL
+ * @param {string} url - 媒体 URL
  * @param {string} namingStrategy - 命名策略: 'original' | 'domain' | 'sequential'
  * @param {number} index - 序号（用于 sequential 策略）
  * @param {string} domain - 域名（用于 domain 策略）
+ * @param {Object} [options] - 媒体信息（用于 sequential 前缀与扩展名兜底）
+ * @param {string} [options.mediaType='image'] - 媒体类型 'image' | 'video'
+ * @param {string} [options.mimeType=''] - MIME 类型（扩展名兜底时推断）
  * @returns {string} 生成的文件名
  */
-export function generateFilename(url, namingStrategy, index, domain) {
+export function generateFilename(url, namingStrategy, index, domain, options = {}) {
+  const mediaType = options.mediaType === MEDIA_TYPES.VIDEO ? MEDIA_TYPES.VIDEO : MEDIA_TYPES.IMAGE;
   const originalName = extractFilename(url);
-  const ext = getExtension(originalName) || '.jpg';
-  const baseName = originalName.replace(ext, '') || 'image';
-  const filenameWithExtension = getExtension(originalName) ? originalName : `${baseName}${ext}`;
+  const originalExt = getExtension(originalName);
+  const mimeExt = extensionFromMimeType(options.mimeType);
+  // 扩展名兜底链：URL 扩展名 → MIME 推断 → 按媒体类型的默认扩展名
+  const ext = originalExt
+    || (mimeExt ? `.${mimeExt}` : (mediaType === MEDIA_TYPES.VIDEO ? '.mp4' : '.jpg'));
+  const baseName = originalName.replace(ext, '')
+    || (mediaType === MEDIA_TYPES.VIDEO ? 'video' : 'image');
+  const filenameWithExtension = originalExt ? originalName : `${baseName}${ext}`;
 
   switch (namingStrategy) {
     case 'domain':
       return sanitizeFilename(`${domain || extractDomain(url)}_${baseName}${ext}`);
     case 'sequential':
-      return sanitizeFilename(`img_${String(index).padStart(4, '0')}${ext}`);
+      return sanitizeFilename(`${mediaType === MEDIA_TYPES.VIDEO ? 'video' : 'img'}_${String(index).padStart(4, '0')}${ext}`);
     case 'original':
     default:
       return sanitizeFilename(filenameWithExtension);
@@ -183,14 +192,16 @@ export function generateFilename(url, namingStrategy, index, domain) {
 
 /**
  * 简单的 URL 去重 key
+ * 同一资源的不同签名/裁剪参数视为不同资源，仅丢弃 hash；
+ * query 参数排序归一，参数顺序不同仍视为同 key。
  * @param {string} url - 要处理的 URL
- * @returns {string} 去重用的 key（去除 hash 和部分查询参数）
+ * @returns {string} 去重用的 key（origin + pathname + 排序后的 query）
  */
 export function urlDedupeKey(url) {
   try {
     const u = new URL(url);
-    // 去除 hash，保留 pathname + 部分查询参数
-    return `${u.origin}${u.pathname}`;
+    u.searchParams.sort();
+    return `${u.origin}${u.pathname}${u.search}`;
   } catch {
     return url;
   }

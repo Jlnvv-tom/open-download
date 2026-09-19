@@ -4,6 +4,7 @@
 
 import { DEFAULT_SETTINGS, MESSAGE_TYPES } from '../src/lib/constants.js';
 import { store } from '../src/lib/store.js';
+import { sleep } from '../src/lib/utils.js';
 import {
   handleRuntimeMessage,
   onRequestCompleted
@@ -20,7 +21,7 @@ function resetStoreSingleton() {
       }
     }
   };
-  store.stats = { total: 0, downloaded: 0, failed: 0 };
+  store.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0 };
   store._loaded = false;
 }
 
@@ -63,11 +64,11 @@ describe('background message handler', () => {
       payload: {
         images: [
           {
-            url: 'https://cdn.example.com/images/photo.jpg?cache=2',
+            url: 'https://cdn.example.com/images/photo.jpg?cache=1',
             width: 1024,
             height: 768,
             alt: '产品图',
-            previewUrl: 'https://cdn.example.com/images/photo-large.jpg?cache=2'
+            previewUrl: 'https://cdn.example.com/images/photo-large.jpg'
           }
         ]
       }
@@ -78,7 +79,7 @@ describe('background message handler', () => {
       width: 1024,
       height: 768,
       alt: '产品图',
-      previewUrl: 'https://cdn.example.com/images/photo-large.jpg?cache=2'
+      previewUrl: 'https://cdn.example.com/images/photo-large.jpg'
     });
     expect(global.chrome.runtime.sendMessage).toHaveBeenCalledWith({
       type: MESSAGE_TYPES.MEDIA_DETAILS_UPDATED,
@@ -243,6 +244,84 @@ describe('background message handler', () => {
     expect(media[0]).toMatchObject({ mediaType: 'image', filename: 'photo.jpg' });
 
     global.chrome.runtime.sendMessage = sendMessage;
+  });
+
+  test('DOWNLOAD_ONE 应该下载单个媒体并广播状态变化', async () => {
+    await store.init();
+    const realSendMessage = global.chrome.runtime.sendMessage;
+    const sendMessage = jest.fn(async () => ({ success: true }));
+    global.chrome.runtime.sendMessage = sendMessage;
+
+    const media = store.addMedia({
+      url: 'https://cdn.example.com/images/single.jpg',
+      filename: 'single.jpg',
+      domain: 'cdn.example.com'
+    });
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.DOWNLOAD_ONE,
+      payload: { id: media.id }
+    });
+
+    expect(response).toMatchObject({ success: true });
+    expect(store.getMediaById(media.id)).toMatchObject({ status: 'downloaded', downloaded: true });
+
+    const statuses = sendMessage.mock.calls
+      .filter(([message]) => message.type === MESSAGE_TYPES.DOWNLOAD_STATUS_CHANGED)
+      .map(([message]) => message.payload.status);
+    expect(statuses).toEqual(['downloading', 'downloaded']);
+
+    global.chrome.runtime.sendMessage = realSendMessage;
+  });
+
+  test('DOWNLOAD_ONE 条目不存在时应该返回错误', async () => {
+    await store.init();
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.DOWNLOAD_ONE,
+      payload: { id: 'not-exists' }
+    });
+
+    expect(response).toEqual({ success: false, error: 'media not found' });
+  });
+
+  test('CANCEL_DOWNLOAD 应该取消进行中的单条下载且不计入失败', async () => {
+    await store.init();
+    const media = store.addMedia({
+      url: 'https://cdn.example.com/images/cancel.jpg',
+      filename: 'cancel.jpg',
+      domain: 'cdn.example.com'
+    });
+
+    const downloadPromise = sendBackgroundMessage({
+      type: MESSAGE_TYPES.DOWNLOAD_ONE,
+      payload: { id: media.id }
+    });
+    await sleep(10);
+
+    const cancelResponse = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.CANCEL_DOWNLOAD,
+      payload: { id: media.id }
+    });
+    expect(cancelResponse).toMatchObject({ success: true, cancelled: true });
+
+    const response = await downloadPromise;
+    expect(response).toMatchObject({ success: false, cancelled: true });
+    expect(store.getMediaById(media.id)).toMatchObject({ status: 'pending' });
+    expect(store.getStats().failed).toBe(0);
+  });
+
+  test('已移除的 DOWNLOAD_ALL / EXPORT_IMAGES 应该命中未知消息分支', async () => {
+    const downloadAllRes = await sendBackgroundMessage({
+      type: 'DOWNLOAD_ALL',
+      payload: { filters: {} }
+    });
+    const exportRes = await sendBackgroundMessage({
+      type: 'EXPORT_IMAGES'
+    });
+
+    expect(downloadAllRes).toEqual({ success: false, error: 'Unknown message type' });
+    expect(exportRes).toEqual({ success: false, error: 'Unknown message type' });
   });
 
   test('DOWNLOAD_ZIP 应该在 offscreen 打包并触发下载', async () => {

@@ -445,6 +445,7 @@ body {
   background: var(--bg-secondary);
   object-fit: cover;
   border: 1px solid var(--border);
+  cursor: zoom-in;
 }
 
 .image-thumb-placeholder {
@@ -458,6 +459,7 @@ body {
   justify-content: center;
   color: var(--text-muted);
   border: 1px solid var(--border);
+  cursor: zoom-in;
 }
 
 .image-info {
@@ -534,6 +536,55 @@ body {
 
 .image-remove:hover {
   color: var(--danger);
+}
+
+/* ─── Item Action Buttons（下载/取消/重试，hover 显现，与 .image-remove 同模式） ─── */
+
+.image-download,
+.image-cancel,
+.image-retry {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.image-item:hover .image-download,
+.image-item:hover .image-cancel,
+.image-item:hover .image-retry {
+  opacity: 1;
+}
+
+.image-download:hover {
+  color: var(--primary);
+}
+
+.image-cancel:hover {
+  color: var(--warning);
+}
+
+.image-retry {
+  color: var(--danger);
+}
+
+.image-retry:hover {
+  color: var(--danger-hover);
+}
+
+.image-download:disabled,
+.image-cancel:disabled,
+.image-retry:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ─── Card View ─── */
@@ -632,6 +683,27 @@ body {
 
 .media-card.selected .media-card-check {
   display: flex;
+}
+
+/* 卡片悬浮操作按钮（下载/取消/重试，hover 显现） */
+.media-card .image-download,
+.media-card .image-cancel,
+.media-card .image-retry {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  opacity: 0;
+}
+
+.media-card:hover .image-download,
+.media-card:hover .image-cancel,
+.media-card:hover .image-retry {
+  opacity: 1;
 }
 
 .media-card-info {
@@ -790,4 +862,114 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ─── Capacity Hint ─── */
+
+.capacity-hint {
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.12);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.capacity-hint[hidden] {
+  display: none;
+}
+
+/* ─── Lightbox（popup 内预览层） ─── */
+
+body.lightbox-open {
+  overflow: hidden;
+}
+
+#lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+#lightbox[hidden] {
+  display: none;
+}
+
+#lightbox-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+}
+
+#lightbox-stage img,
+#lightbox-stage video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: var(--bg-secondary);
+}
+
+#lightbox-caption {
+  max-width: 90%;
+  padding: 8px 0 14px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.lightbox-btn {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lightbox-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.lightbox-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#lightbox-close {
+  top: 10px;
+  right: 10px;
+}
+
+#lightbox-prev {
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#lightbox-next {
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
 }

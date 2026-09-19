@@ -117,19 +117,44 @@ describe('ImageStore', () => {
       expect(image1.id).not.toBe(image2.id);
     });
 
-    test('应该去重（当 dedupe 为 true）', async () => {
+    test('相同 URL 应该去重，不同 query 视为不同资源（当 dedupe 为 true）', async () => {
       await testStore.saveSettings({ dedupe: true });
 
       const image1 = testStore.addImage({
-        url: 'https://example.com/same.jpg',
+        url: 'https://example.com/same.jpg?sign=abc',
         filename: 'same.jpg'
       });
       const image2 = testStore.addImage({
-        url: 'https://example.com/same.jpg?query=123',
+        url: 'https://example.com/same.jpg?sign=def',
         filename: 'same.jpg'
       });
 
+      // 签名/参数不同的同路径 URL 是不同资源
       expect(image1).toBeDefined();
+      expect(image2).toBeDefined();
+      expect(testStore.getImages().length).toBe(2);
+
+      // 完全相同的 URL 仍然去重
+      const image3 = testStore.addImage({
+        url: 'https://example.com/same.jpg?sign=abc',
+        filename: 'same.jpg'
+      });
+      expect(image3).toBeNull();
+      expect(testStore.getImages().length).toBe(2);
+    });
+
+    test('query 参数顺序不同应该视为同一资源（当 dedupe 为 true）', async () => {
+      await testStore.saveSettings({ dedupe: true });
+
+      testStore.addImage({
+        url: 'https://example.com/same.jpg?b=2&a=1',
+        filename: 'same.jpg'
+      });
+      const image2 = testStore.addImage({
+        url: 'https://example.com/same.jpg?a=1&b=2',
+        filename: 'same.jpg'
+      });
+
       expect(image2).toBeNull();
       expect(testStore.getImages().length).toBe(1);
     });
@@ -196,19 +221,32 @@ describe('ImageStore', () => {
       expect(stats.downloaded).toBe(1);
     });
 
-    test('应该更新图片状态为 failed', () => {
+    test('应该更新图片状态为 failed 并记录失败原因', () => {
       const image = testStore.addImage({
         url: 'https://example.com/test.jpg',
         filename: 'test.jpg'
       });
 
-      testStore.updateImageStatus(image.id, 'failed');
+      testStore.updateImageStatus(image.id, 'failed', 'HTTP 403');
 
       const updated = testStore.getImageById(image.id);
       expect(updated.status).toBe('failed');
+      expect(updated.errorMsg).toBe('HTTP 403');
 
       const stats = testStore.getStats();
       expect(stats.failed).toBe(1);
+    });
+
+    test('状态离开 failed 时应该清空失败原因', () => {
+      const image = testStore.addImage({
+        url: 'https://example.com/test.jpg',
+        filename: 'test.jpg'
+      });
+
+      testStore.updateImageStatus(image.id, 'failed', 'HTTP 403');
+      testStore.updateImageStatus(image.id, 'pending');
+
+      expect(testStore.getImageById(image.id).errorMsg).toBe('');
     });
 
     test('重复设置相同终态不应该重复累计统计', () => {
@@ -239,7 +277,7 @@ describe('ImageStore', () => {
         filename: 'photo.jpg'
       });
 
-      const updated = testStore.updateImageDetailsByUrl('https://cdn.example.com/path/photo.jpg?cache=2', {
+      const updated = testStore.updateImageDetailsByUrl('https://cdn.example.com/path/photo.jpg?cache=1', {
         width: 800,
         height: 600,
         alt: '封面图',
@@ -253,6 +291,20 @@ describe('ImageStore', () => {
         alt: '封面图',
         previewUrl: 'https://cdn.example.com/path/photo-large.jpg'
       });
+    });
+
+    test('不同 query 的 URL 不应该跨条目更新', () => {
+      testStore.addImage({
+        url: 'https://cdn.example.com/path/photo.jpg?sign=abc',
+        filename: 'photo.jpg'
+      });
+
+      const updated = testStore.updateImageDetailsByUrl('https://cdn.example.com/path/photo.jpg?sign=xyz', {
+        width: 320,
+        height: 240
+      });
+
+      expect(updated).toBe(0);
     });
 
     test('未知 URL 不应该更新任何图片', () => {
@@ -377,6 +429,27 @@ describe('ImageStore', () => {
 
       const stats = testStore.getStats();
       expect(stats.downloaded).toBe(1);
+    });
+
+    test('超过上限时应该截断并累计 truncated 统计', async () => {
+      // 直接构造超过上限的列表，避免逐条 addImage
+      const now = Date.now();
+      for (let i = 0; i < 5010; i++) {
+        testStore.images.push({
+          id: `id-${i}`,
+          mediaType: 'image',
+          url: `https://a.com/${i}.jpg`,
+          filename: `${i}.jpg`,
+          domain: 'a.com',
+          status: 'pending',
+          capturedAt: now + i,
+        });
+      }
+
+      await testStore.saveImages();
+
+      expect(testStore.getImages().length).toBe(5000);
+      expect(testStore.getStats().truncated).toBe(10);
     });
   });
 

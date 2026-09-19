@@ -6,7 +6,8 @@
 specs/
 ├── features/       # 新功能
 ├── refactors/      # 重构
-└── bugfixes/       # Bug 修复
+├── bugfixes/       # Bug 修复
+└── analysis/       # 产品/竞品分析与路线图
 ```
 
 每个子目录下按主题创建目录，目录名使用 kebab-case：
@@ -42,6 +43,7 @@ YYYY-MM-DD-<主题描述>.md
 | 功能 | `features/` | 新增用户可感知的能力 |
 | 重构 | `refactors/` | 不改变外部行为的内部改造 |
 | Bug 修复 | `bugfixes/` | 修复已有功能的异常行为 |
+| 分析 | `analysis/` | 竞品对比、数据结构与迭代路线图等产品分析 |
 
 ## 文档语言
 

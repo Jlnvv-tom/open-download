@@ -136,7 +136,10 @@ export async function createMediaZip(mediaItems, {
 
       const data = new Uint8Array(await response.arrayBuffer());
       const filename = uniqueZipFilename(
-        generateFilename(media.url, fileNaming, index, media.domain),
+        generateFilename(media.url, fileNaming, index, media.domain, {
+          mediaType: media.mediaType,
+          mimeType: media.mimeType,
+        }),
         usedNames
       );
       const nameBytes = textEncoder.encode(filename);

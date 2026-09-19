@@ -3,6 +3,7 @@
  */
 
 import { DownloadManager } from '../src/lib/downloader.js';
+import { sleep } from '../src/lib/utils.js';
 
 describe('DownloadManager', () => {
   let downloader;
@@ -25,7 +26,9 @@ describe('DownloadManager', () => {
   describe('初始化', () => {
     test('应该正确初始化', () => {
       expect(downloader.maxConcurrency).toBe(3);
-      expect(downloader.queue).toEqual([]);
+      expect(downloader.activeDownloads).toBeInstanceOf(Map);
+      expect(downloader.activeDownloads.size).toBe(0);
+      expect(downloader.cancelRequested).toBe(false);
       expect(downloader.active).toBe(0);
     });
   });
@@ -82,6 +85,7 @@ describe('DownloadManager', () => {
 
       expect(result.success).toBe(true);
       expect(result.downloadId).toBeDefined();
+      expect(downloader.activeDownloads.size).toBe(0);
     });
 
     test('应该处理下载失败', async () => {
@@ -97,12 +101,42 @@ describe('DownloadManager', () => {
         throw new Error('Download failed');
       };
 
-      const result = await downloader.downloadImage(image);
+      try {
+        const result = await downloader.downloadImage(image);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Download failed');
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Download failed');
+      } finally {
+        global.chrome.downloads.download = originalDownload;
+      }
+    });
 
-      global.chrome.downloads.download = originalDownload;
+    test('下载失败时应该把失败原因写回 store', async () => {
+      const statusCalls = [];
+      mockStore.updateImageStatus = (id, status, errorMsg = '') => statusCalls.push({ id, status, errorMsg });
+
+      const image = {
+        id: 'test-id-3',
+        url: 'https://invalid-url.com/image.jpg',
+        filename: 'image.jpg',
+        domain: 'invalid-url.com'
+      };
+
+      const originalDownload = global.chrome.downloads.download;
+      global.chrome.downloads.download = async () => {
+        throw new Error('HTTP 403');
+      };
+
+      try {
+        await downloader.downloadImage(image);
+
+        expect(statusCalls).toEqual([
+          { id: 'test-id-3', status: 'downloading', errorMsg: '' },
+          { id: 'test-id-3', status: 'failed', errorMsg: 'HTTP 403' }
+        ]);
+      } finally {
+        global.chrome.downloads.download = originalDownload;
+      }
     });
   });
 
@@ -157,18 +191,122 @@ describe('DownloadManager', () => {
         'OpenDownload/img_0002.webp'
       ]);
     });
-  });
 
-  describe('取消下载', () => {
-    test('应该清空队列', () => {
-      const callback = jest.fn();
-      downloader.on(callback);
+    test('视频条目 sequential 命名应该使用 video_ 前缀并按 MIME 兜底扩展名', async () => {
+      mockStore.getSettings = () => ({
+        concurrency: 1,
+        fileNaming: 'sequential',
+        savePath: 'OpenDownload'
+      });
 
-      downloader.cancelAll();
+      const images = [
+        { id: 'vid-1', url: 'https://a.com/clip', filename: 'clip', domain: 'a.com', mediaType: 'video', mimeType: 'video/mp4' }
+      ];
 
-      expect(downloader.queue).toEqual([]);
-      expect(callback).toHaveBeenCalledWith('cancelled', {});
+      await downloader.downloadBatch(images);
+
+      const filenames = Array.from(global.chrome.downloads._downloads.values())
+        .map(download => download.filename);
+
+      expect(filenames).toEqual(['OpenDownload/video_0000.mp4']);
     });
   });
 
+  describe('取消下载', () => {
+    test('无活动下载时 cancelAll 应该触发 cancelled 事件', async () => {
+      const callback = jest.fn();
+      downloader.on(callback);
+
+      await downloader.cancelAll();
+
+      expect(callback).toHaveBeenCalledWith('cancelled', {});
+      expect(downloader.cancelRequested).toBe(true);
+    });
+
+    test('cancelOne 应该取消进行中的下载并将状态回退为 pending', async () => {
+      const statusCalls = [];
+      mockStore.updateImageStatus = (id, status) => statusCalls.push(status);
+
+      const image = {
+        id: 'cancel-1',
+        url: 'https://example.com/x.jpg',
+        filename: 'x.jpg',
+        domain: 'example.com'
+      };
+
+      const downloadPromise = downloader.downloadImage(image);
+      await sleep(10); // 等待 downloadId 产生
+
+      const downloadId = Number(global.chrome.downloads._downloads.keys().next().value);
+      expect(downloader.activeDownloads.get('cancel-1')).toBe(downloadId);
+
+      const cancelled = await downloader.cancelOne('cancel-1');
+      expect(cancelled).toBe(true);
+
+      const result = await downloadPromise;
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(true);
+      expect(statusCalls).toEqual(['downloading', 'pending']);
+      expect(downloader.activeDownloads.has('cancel-1')).toBe(false);
+    });
+
+    test('cancelOne 对无活动下载的条目应该返回 false', async () => {
+      const cancelled = await downloader.cancelOne('not-exists');
+      expect(cancelled).toBe(false);
+    });
+
+    test('下载中断（非用户取消）应该标记为 failed', async () => {
+      const statusCalls = [];
+      mockStore.updateImageStatus = (id, status) => statusCalls.push(status);
+
+      const image = {
+        id: 'interrupt-1',
+        url: 'https://example.com/y.jpg',
+        filename: 'y.jpg',
+        domain: 'example.com'
+      };
+
+      const downloadPromise = downloader.downloadImage(image);
+      await sleep(10);
+
+      const downloadId = Number(global.chrome.downloads._downloads.keys().next().value);
+      global.chrome.downloads._simulateError(downloadId);
+
+      const result = await downloadPromise;
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBeUndefined();
+      expect(statusCalls).toEqual(['downloading', 'failed']);
+    });
+
+    test('cancelAll 应该取消所有进行中的下载并停止批量队列', async () => {
+      mockStore.getSettings = () => ({
+        concurrency: 1,
+        fileNaming: 'original',
+        savePath: 'OpenDownload'
+      });
+
+      const images = Array.from({ length: 4 }, (_, i) => ({
+        id: `batch-cancel-${i}`,
+        url: `https://a.com/${i}.jpg`,
+        filename: `${i}.jpg`,
+        domain: 'a.com'
+      }));
+
+      const callback = jest.fn();
+      downloader.on(callback);
+
+      const batchPromise = downloader.downloadBatch(images);
+      await sleep(10);
+
+      await downloader.cancelAll();
+      const results = await batchPromise;
+
+      // 取消后队列停止，未全部跑完
+      expect(results.length).toBeLessThan(images.length);
+      expect(callback).toHaveBeenCalledWith('cancelled', {});
+      expect(downloader.activeDownloads.size).toBe(0);
+      // 后续批次不再被旧标志位阻塞
+      expect(downloader.cancelRequested).toBe(false);
+    });
+  });
 });

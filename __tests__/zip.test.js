@@ -71,6 +71,17 @@ describe('zip.js', () => {
     expect(result.errors[0].media.id).toBe('2');
   });
 
+  test('sequential 命名下混合类型应该按媒体类型区分前缀', async () => {
+    const fetchFn = jest.fn(async () => makeResponse('data'));
+    const result = await createMediaZip([
+      { id: '1', url: 'https://example.com/pic', filename: 'pic', domain: 'example.com', mediaType: 'image', mimeType: 'image/png' },
+      { id: '2', url: 'https://example.com/clip', filename: 'clip', domain: 'example.com', mediaType: 'video', mimeType: 'video/mp4' }
+    ], { fetchFn, fileNaming: 'sequential' });
+
+    expect(result.succeeded).toBe(2);
+    expect(result.entries.map(entry => entry.name).sort()).toEqual(['img_0000.png', 'video_0001.mp4']);
+  });
+
   test('打包过程应该通过 onProgress 汇报进度', async () => {
     const fetchFn = jest.fn(async () => makeResponse('image-data'));
     const progress = [];

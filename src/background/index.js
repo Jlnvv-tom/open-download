@@ -17,6 +17,26 @@ import {
 
 const downloader = new DownloadManager(store);
 
+// downloader 事件 → 广播给 popup（下载状态变化目前没有其他回传通道）
+// 顶层注册与 webRequest 监听器同一策略：SW 每次启动即挂载
+const DOWNLOAD_EVENT_STATUS = {
+  progress: 'downloading',
+  complete: 'downloaded',
+  error: 'failed',
+  cancelled: 'pending',
+};
+
+downloader.on((event, data) => {
+  const status = DOWNLOAD_EVENT_STATUS[event];
+  if (!status || !data?.imageId) return;
+  chrome.runtime.sendMessage({
+    type: MESSAGE_TYPES.DOWNLOAD_STATUS_CHANGED,
+    payload: { id: data.imageId, status, error: data.error || '' },
+  }).catch(() => {
+    // popup 可能未打开，忽略错误
+  });
+});
+
 // ─── 网络请求监听 ──────────────────────────────────────
 
 /**
@@ -341,14 +361,25 @@ function handleRuntimeMessage(message, sender, sendResponse) {
           break;
         }
 
-        case MESSAGE_TYPES.DOWNLOAD_ALL: {
+        case MESSAGE_TYPES.DOWNLOAD_ONE: {
           await store.init();
-          const filters = message.payload?.filters || {};
-          const images = store.getFilteredImages(filters);
-          const results = await downloader.downloadBatch(images);
-          const succeeded = results.filter(r => r.success).length;
-          const failed = results.filter(r => !r.success).length;
-          sendResponse({ success: true, succeeded, failed });
+          const image = store.getImageById(message.payload?.id);
+          if (!image) {
+            sendResponse({ success: false, error: 'media not found' });
+            break;
+          }
+          const result = await downloader.downloadImage(image);
+          sendResponse({ success: result.success, error: result.error, cancelled: result.cancelled });
+          break;
+        }
+
+        case MESSAGE_TYPES.CANCEL_DOWNLOAD: {
+          await store.init();
+          const id = message.payload?.id;
+          const cancelled = id
+            ? await downloader.cancelOne(id)
+            : (await downloader.cancelAll(), true);
+          sendResponse({ success: true, cancelled });
           break;
         }
 
@@ -374,14 +405,6 @@ function handleRuntimeMessage(message, sender, sendResponse) {
         case MESSAGE_TYPES.GET_SETTINGS: {
           await store.init();
           sendResponse({ success: true, settings: store.getSettings() });
-          break;
-        }
-
-        case MESSAGE_TYPES.EXPORT_IMAGES: {
-          await store.init();
-          const images = store.getImages();
-          const json = JSON.stringify(images, null, 2);
-          sendResponse({ success: true, data: json });
           break;
         }
 

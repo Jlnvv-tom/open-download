@@ -187,21 +187,55 @@ describe('utils.js', () => {
       expect(result).toBe('img_0005.jpg');
     });
 
+    test('sequential 策略视频应该使用 video_ 前缀', () => {
+      const result = generateFilename('https://example.com/any.mp4', 'sequential', 5, 'example.com', {
+        mediaType: 'video',
+        mimeType: 'video/mp4'
+      });
+      expect(result).toBe('video_0005.mp4');
+    });
+
     test('应该处理没有扩展名的文件', () => {
       const result = generateFilename('https://example.com/photo', 'original', 0, 'example.com');
       // 当文件没有扩展名时，generateFilename 会添加 .jpg 扩展名
       expect(result).toMatch(/photo.*\.jpg$/);
     });
+
+    test('无扩展名时应该按 MIME 推断扩展名', () => {
+      const result = generateFilename('https://example.com/photo', 'original', 0, 'example.com', {
+        mediaType: 'image',
+        mimeType: 'image/gif'
+      });
+      expect(result).toMatch(/photo.*\.gif$/);
+    });
+
+    test('视频无扩展名且无 MIME 时应该兜底 .mp4', () => {
+      const result = generateFilename('https://example.com/clip', 'original', 0, 'example.com', {
+        mediaType: 'video',
+        mimeType: ''
+      });
+      expect(result).toBe('clip.mp4');
+    });
   });
 
   describe('urlDedupeKey()', () => {
-    test('应该生成去重 key（origin + pathname）', () => {
+    test('应该保留 origin + pathname + query', () => {
       expect(urlDedupeKey('https://example.com/path/image.jpg')).toBe('https://example.com/path/image.jpg');
-      expect(urlDedupeKey('https://example.com/test.png?query=123')).toBe('https://example.com/test.png');
+      expect(urlDedupeKey('https://example.com/test.png?query=123')).toBe('https://example.com/test.png?query=123');
+    });
+
+    test('不同 query 应该生成不同 key（签名 URL 不被误合并）', () => {
+      expect(urlDedupeKey('https://example.com/a.jpg?sign=abc'))
+        .not.toBe(urlDedupeKey('https://example.com/a.jpg?sign=def'));
+    });
+
+    test('query 参数顺序不同应该生成相同 key', () => {
+      expect(urlDedupeKey('https://example.com/a.jpg?b=2&a=1'))
+        .toBe(urlDedupeKey('https://example.com/a.jpg?a=1&b=2'));
     });
 
     test('应该移除 hash', () => {
-      expect(urlDedupeKey('https://example.com/photo.jpg#section')).toBe('https://example.com/photo.jpg');
+      expect(urlDedupeKey('https://example.com/photo.jpg?x=1#section')).toBe('https://example.com/photo.jpg?x=1');
     });
 
     test('应该处理无效 URL', () => {
