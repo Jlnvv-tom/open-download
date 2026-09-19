@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Download — 网络图片视频批量下载器</title>
+  <meta name="description" content="Open Download 是一款 Chrome 扩展，全局监听网页网络请求，自动识别图片和视频资源，支持筛选、预览与 ZIP 批量下载。数据仅存本地，零依赖、离线可用。">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#top">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Open Download</span>
+      </a>
+      <nav class="site-nav">
+        <a href="#features">功能</a>
+        <a href="#how-it-works">原理</a>
+        <a href="#install">安装</a>
+        <a href="#settings">设置</a>
+        <a href="#faq">FAQ</a>
+        <a class="nav-github" href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container hero-inner">
+        <p class="hero-badge">Chrome Extension · Manifest V3 · v1.2.0</p>
+        <h1>网页里的图片和视频，<br><span class="hero-accent">一键批量打包带走</span></h1>
+        <p class="hero-sub">
+          Open Download 在浏览器后台全局监听网络请求，自动识别网页加载的图片与视频资源。
+          打开弹窗即可按类型、格式、大小、尺寸筛选，预览后打包成一个 ZIP 保存到本地。
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#install">立即安装</a>
+          <a class="btn btn-ghost" href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">查看源码</a>
+        </div>
+        <ul class="hero-points">
+          <li>数据仅存本地，不上传任何服务器</li>
+          <li>零依赖原生实现，离线可用</li>
+          <li>ZIP 打包在后台完成，关闭弹窗不中断</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+      <div class="container">
+        <h2 class="section-title">功能特性</h2>
+        <p class="section-sub">从捕获到落盘，一条完整的批量下载流水线</p>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <h3>全局监听</h3>
+            <p>基于 <code>webRequest.onCompleted</code> 的观察式监听，覆盖所有网站的网络请求，自动识别图片与视频资源。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            </div>
+            <h3>多维筛选</h3>
+            <p>媒体类型、扩展名、文件大小、图片宽高、域名排除、关键词搜索，层层过滤，快速定位目标资源。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+            <h3>双视图预览</h3>
+            <p>信息密集的列表视图与沉浸式卡片网格自由切换，视频支持内嵌预览，选择状态跨视图保留。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+            <h3>ZIP 批量下载</h3>
+            <p>选中或全部资源在后台 offscreen 文档中串行抓取、打包为单个 ZIP，进度实时显示，关闭弹窗不中断。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <h3>灵活设置</h3>
+            <p>保存目录、命名策略（原名/域名/序号）、并发数、自动下载、URL 去重等配置，均可在设置页调整。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+            </div>
+            <h3>隐私优先</h3>
+            <p>所有捕获记录仅保存在浏览器本地的 <code>chrome.storage.local</code>，不采集、不上传、无任何统计埋点。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section section-alt" id="how-it-works">
+      <div class="container">
+        <h2 class="section-title">工作原理</h2>
+        <p class="section-sub">三条数据通道汇聚到本地存储，弹窗实时呈现</p>
+        <div class="flow">
+          <div class="flow-node">
+            <h4>网络请求</h4>
+            <p>Service Worker 监听 <code>onCompleted</code>，按 MIME / 资源类型 / 扩展名三级识别媒体</p>
+          </div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-node">
+            <h4>页面元素</h4>
+            <p>Content Script 收集 <code>&lt;img&gt;</code> 的真实宽高与 alt，回填到捕获记录</p>
+          </div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-node">
+            <h4>本地存储</h4>
+            <p>去重、过滤后写入 <code>chrome.storage.local</code>（上限 5000 条）</p>
+          </div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-node">
+            <h4>弹窗 &amp; 下载</h4>
+            <p>Popup 筛选预览，offscreen 打包 ZIP 交给 Downloads API 保存</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Install -->
+    <section class="section" id="install">
+      <div class="container">
+        <h2 class="section-title">安装使用</h2>
+        <p class="section-sub">两种方式，任选其一</p>
+        <div class="install-grid">
+          <div class="install-card">
+            <h3>方式一：开发者模式加载</h3>
+            <ol class="steps">
+              <li>克隆仓库并安装依赖：<code>npm install</code></li>
+              <li>构建产物：<code>npm run build</code>，生成 <code>dist/</code> 目录</li>
+              <li>打开 <code>chrome://extensions</code>，开启右上角「开发者模式」</li>
+              <li>点击「加载已解压的扩展程序」，选择 <code>dist/</code> 目录</li>
+            </ol>
+            <p class="install-note">修改源码后重新 <code>npm run build</code>，并在扩展卡片上点击刷新即可生效。</p>
+          </div>
+          <div class="install-card">
+            <h3>方式二：下载 Release 安装包</h3>
+            <ol class="steps">
+              <li>前往 GitHub Releases 页面</li>
+              <li>下载 <code>open-download-&lt;version&gt;.zip</code></li>
+              <li>解压到任意目录</li>
+              <li>同样通过「加载已解压的扩展程序」选择解压后的目录</li>
+            </ol>
+            <p class="install-note">安装后点击工具栏图标开启监听，然后正常浏览网页即可开始捕获。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="section section-alt" id="settings">
+      <div class="container">
+        <h2 class="section-title">设置说明</h2>
+        <p class="section-sub">全部配置保存在本地，随时可恢复默认</p>
+        <div class="table-wrap">
+          <table class="settings-table">
+            <thead>
+              <tr><th>设置项</th><th>说明</th><th>默认值</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>自动下载</td><td>捕获到资源后立即逐个下载</td><td>关闭</td></tr>
+              <tr><td>保存目录</td><td>下载文件在「下载」文件夹下的子目录名</td><td>OpenDownload</td></tr>
+              <tr><td>文件命名</td><td>保留原名 / 域名_文件名 / 序号 img_0001</td><td>保留原名</td></tr>
+              <tr><td>并发下载数</td><td>逐个下载模式的同时下载数量（1-10）</td><td>3</td></tr>
+              <tr><td>大小过滤</td><td>按文件大小过滤捕获的资源（KB，0 不限制）</td><td>不限制</td></tr>
+              <tr><td>捕获媒体类型</td><td>勾选捕获图片 / 视频，全不勾选则捕获全部</td><td>全选</td></tr>
+              <tr><td>排除域名</td><td>忽略指定域名的媒体请求</td><td>空</td></tr>
+              <tr><td>仅捕获扩展名</td><td>扩展名白名单，留空捕获全部支持类型</td><td>空</td></tr>
+              <tr><td>URL 去重</td><td>相同地址只捕获一次（忽略查询参数）</td><td>开启</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+      <div class="container">
+        <h2 class="section-title">常见问题</h2>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>会捕获到我不想要的图标、雪碧图吗？</summary>
+            <p>可以在设置中开启大小过滤与「最小宽高」筛选（弹窗筛选面板内），或在 Options 中排除常见静态资源域名；列表中不需要的条目也可以单独移除。</p>
+          </details>
+          <details class="faq-item">
+            <summary>ZIP 打包过程中可以关掉弹窗吗？</summary>
+            <p>可以。v1.2.0 起打包任务在后台 offscreen document 中执行，关闭弹窗不会中断；重新打开弹窗后可看到最新的下载状态。</p>
+          </details>
+          <details class="faq-item">
+            <summary>m3u8 / HLS 视频会下载成完整视频吗？</summary>
+            <p>不会。扩展只捕获 m3u8 清单文件本身，不做分片下载与合并。</p>
+          </details>
+          <details class="faq-item">
+            <summary>捕获记录会上传或同步吗？</summary>
+            <p>不会。所有数据只写入本地 <code>chrome.storage.local</code>，扩展没有远程服务器，也没有任何遥测。</p>
+          </details>
+          <details class="faq-item">
+            <summary>为什么需要「读取网站数据」权限？</summary>
+            <p>监听网络请求需要 <code>webRequest</code> 与 <code>&lt;all_urls&gt;</code> 主机权限；扩展只读取请求的 URL、响应头（类型与大小），不读取页面内容，也不修改任何请求。</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Open Download · MIT License · 数据仅存本地</p>
+      <p><a href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub 仓库</a> · <a href="https://github.com/wujihuan/open-download/releases" target="_blank" rel="noopener">Releases</a></p>
+    </div>
+  </footer>
+</body>
+</html>

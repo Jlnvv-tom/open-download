@@ -105,6 +105,17 @@ h1 {
   vertical-align: middle;
 }
 
+.checkbox-group {
+  display: flex;
+  gap: 16px;
+}
+
+.checkbox-group label {
+  font-weight: 400;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .form-row textarea {
   resize: vertical;
   font-family: monospace;

@@ -11,6 +11,8 @@ const fields = {
   concurrency: $('#concurrency'),
   minSize: $('#min-size'),
   maxSize: $('#max-size'),
+  captureImage: $('#capture-image'),
+  captureVideo: $('#capture-video'),
   excludeDomains: $('#exclude-domains'),
   filterExtensions: $('#filter-extensions'),
   dedupe: $('#dedupe'),
@@ -33,6 +35,9 @@ async function loadSettings() {
   fields.concurrency.value = s.concurrency;
   fields.minSize.value = s.minImageSize ? (s.minImageSize / 1024).toFixed(0) : '';
   fields.maxSize.value = s.maxImageSize ? (s.maxImageSize / 1024).toFixed(0) : '';
+  const mediaTypes = s.filters.mediaTypes || [];
+  fields.captureImage.checked = mediaTypes.length === 0 || mediaTypes.includes('image');
+  fields.captureVideo.checked = mediaTypes.length === 0 || mediaTypes.includes('video');
   fields.excludeDomains.value = (s.filters.domains || []).join('\n');
   fields.filterExtensions.value = (s.filters.extensions || []).join(',');
   fields.dedupe.checked = s.dedupe;
@@ -52,6 +57,11 @@ function collectSettings() {
   const minKB = parseInt(fields.minSize.value, 10) || 0;
   const maxKB = parseInt(fields.maxSize.value, 10) || 0;
 
+  // 空列表 = 捕获全部类型
+  const mediaTypes = [];
+  if (fields.captureImage.checked) mediaTypes.push('image');
+  if (fields.captureVideo.checked) mediaTypes.push('video');
+
   return {
     autoDownload: fields.autoDownload.checked,
     savePath: fields.savePath.value || 'OpenDownload',
@@ -63,6 +73,7 @@ function collectSettings() {
     filters: {
       domains,
       extensions,
+      mediaTypes,
     },
   };
 }

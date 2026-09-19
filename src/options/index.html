@@ -58,6 +58,15 @@
       </div>
 
       <div class="form-row">
+        <label>捕获媒体类型</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="capture-image" checked> 图片</label>
+          <label><input type="checkbox" id="capture-video" checked> 视频</label>
+        </div>
+        <small>不勾选任何类型时将捕获全部支持的类型</small>
+      </div>
+
+      <div class="form-row">
         <label>排除域名 (每行一个)</label>
         <textarea id="exclude-domains" rows="4" placeholder="example.com&#10;cdn.example.com"></textarea>
         <small>这些域名的图片请求将被忽略</small>

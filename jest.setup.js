@@ -135,6 +135,12 @@ global.chrome = {
     async sendMessage(message) {
       return { success: true };
     },
+    async getContexts(filter = {}) {
+      if (filter.contextTypes && !filter.contextTypes.includes('OFFSCREEN_DOCUMENT')) {
+        return [];
+      }
+      return global.chrome.offscreen._exists ? [{ contextType: 'OFFSCREEN_DOCUMENT' }] : [];
+    },
     onInstalled: {
       addListener(callback) {}
     },
@@ -143,6 +149,28 @@ global.chrome = {
     },
     _reset() {
       global.chrome.runtime._messageListeners.clear();
+    }
+  },
+
+  offscreen: {
+    _exists: false,
+    _created: 0,
+    _closed: 0,
+
+    async createDocument(options) {
+      global.chrome.offscreen._created++;
+      global.chrome.offscreen._exists = true;
+    },
+
+    async closeDocument() {
+      global.chrome.offscreen._closed++;
+      global.chrome.offscreen._exists = false;
+    },
+
+    _reset() {
+      global.chrome.offscreen._exists = false;
+      global.chrome.offscreen._created = 0;
+      global.chrome.offscreen._closed = 0;
     }
   },
 
@@ -194,4 +222,5 @@ beforeEach(() => {
   global.chrome.downloads._reset();
   global.chrome.runtime._reset();
   global.chrome.webRequest._reset();
+  global.chrome.offscreen._reset();
 });

@@ -11,19 +11,23 @@ Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听
 ## 目录职责
 
 - `src/manifest.json`: MV3 扩展清单，声明权限、后台 service worker、popup、options、content script 和图标。
-- `src/background/index.js`: 核心后台逻辑，包括 `webRequest` 监听、状态恢复、右键菜单、消息路由和下载触发。
+- `src/background/index.js`: 核心后台逻辑，包括 `webRequest` 监听、右键菜单、消息路由、offscreen ZIP 打包编排和下载触发。
+- `src/offscreen/`: offscreen document（`offscreen/index.html` + `offscreen.js`），在完整 DOM 上下文中抓取媒体并打包 ZIP，由 background 按需创建/关闭。
 - `src/lib/constants.js`: 全局常量、默认设置和 message type 定义。
 - `src/lib/store.js`: `chrome.storage.local` 上的媒体、设置和统计数据管理。
 - `src/lib/downloader.js`: 批量下载、并发控制和下载状态更新。
-- `src/lib/zip.js`: 无压缩 ZIP 打包工具，用于 Popup 中的一次性 ZIP 下载。
+- `src/lib/zip.js`: 无压缩 ZIP 打包工具，由 offscreen 文档调用（支持 `onProgress` 进度回调）。
 - `src/lib/utils.js`: URL、文件名、大小格式化、去重 key 等通用工具。
 - `src/popup/`: 弹窗页面 UI、样式和交互逻辑。
 - `src/options/`: 设置页 UI、样式和交互逻辑。
 - `src/content/index.js`: 页面内图片尺寸收集和动态图片观察。
 - `src/assets/`: 扩展图标。
 - `dist/`: `npm run build` 生成的 Chrome 加载目录，不手动编辑。
-- `scripts/build.js`: 清理并复制 `src/` 到 `dist/`，同时校验 manifest 引用文件。
+- `docs/`: 官网落地页静态站点（无远程资源），通过 Deploy Docs 工作流部署到 GitHub Pages。
+- `.github/workflows/`: `deploy-docs.yml` 部署 docs 落地页；`release.yml` 在推送 `v*` 标签时测试、打包并发布 GitHub Release。
+- `scripts/build.js`: 清理并复制 `src/` 到 `dist/`，同时校验 manifest 引用文件和 offscreen 文件。
 - `scripts/pack.js`: 构建后生成 zip 包到 `packages/`。
+- `scripts/release.sh`: 本地发布脚本（`npm run release`），测试 → 打包 → 打 tag 推送。
 - `scripts/gen-icons.py`: 生成 PNG 图标的脚本。
 - `specs/`: 功能、重构和 bugfix 设计文档目录。
 
@@ -66,6 +70,18 @@ npm run pack
 
 构建 `dist/` 并生成 `packages/open-download-<version>.zip`。
 
+```bash
+npm run release
+```
+
+本地发布：校验工作区干净 → 测试 → 打包 → 创建并推送 `v<version>` 标签（触发 Release 工作流发布 GitHub Release）→ 推送 master（触发 docs 部署）。
+
+```bash
+npm run deploy:docs
+```
+
+手动触发 Deploy Docs 工作流，部署 `docs/` 落地页到 GitHub Pages（首次需在仓库 Settings → Pages 将 Source 设为 GitHub Actions）。
+
 ## 开发与验证
 
 1. 在 Chrome 打开 `chrome://extensions`。
@@ -99,7 +115,8 @@ npm run pack
 ## Chrome 扩展注意事项
 
 - `webRequest` 在 MV3 中用于观察请求，不要实现阻塞或拦截式逻辑，除非同步调整权限和架构。
-- `src/background/index.js` 中监听器重复注册会造成重复捕获；修改启动/停止逻辑时确认 `isListening` 的语义。
+- `src/background/index.js` 的 `webRequest.onCompleted` 监听器在**模块顶层注册**，每次 SW 启动同步挂载；是否捕获由 `settings.enabled` 决定（不再使用 `isListening` 标志和动态增删监听器）。不要把监听器注册改回条件分支内。
+- ZIP 打包依赖 background 与 offscreen document 的消息编排（`ZIP_BUILD_*` 消息族），offscreen 文档由 `ensureOffscreenDocument()` 按需创建，下载结束后关闭；修改时注意 blob URL 的生命周期。
 - `chrome.storage.local` 是异步 API，但当前 `store.addImage()` 内部有 fire-and-forget 保存行为。涉及一致性或批量更新时要谨慎。
 - `src/content/index.js` 会向 background 发送 `CONTENT_IMAGES_UPDATE`，`src/background/index.js` 会将尺寸信息补充到已捕获图片记录。
 - `src/lib/utils.js` 的 `isImageUrl()` 使用 `IMAGE_EXTENSIONS`，如修改该函数，确认常量导入正确。
@@ -151,6 +168,8 @@ npm run pack
 - `ui.mediaType`
 - `filters.domains`
 - `filters.extensions`
+- `filters.mediaTypes`
+- `filters.minDimensions`
 
 ## 变更前检查清单
 

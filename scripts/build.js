@@ -24,6 +24,9 @@ async function validateDist() {
     manifest.background?.service_worker,
     manifest.action?.default_popup,
     manifest.options_page,
+    // offscreen 文档由 background 运行时按需创建，manifest 不静态引用，这里显式校验
+    'offscreen/index.html',
+    'offscreen/offscreen.js',
     ...(manifest.content_scripts || []).flatMap(script => script.js || []),
     ...Object.values(manifest.action?.default_icon || {}),
     ...Object.values(manifest.icons || {}),

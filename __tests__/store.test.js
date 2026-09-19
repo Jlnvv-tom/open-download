@@ -315,6 +315,16 @@ describe('ImageStore', () => {
       expect(filtered[0].size).toBe(5000);
     });
 
+    test('应该按最小宽高过滤且保留尺寸未知的条目', () => {
+      testStore.addImage({ url: 'https://a.com/1.jpg', filename: '1.jpg', width: 800, height: 600 });
+      testStore.addImage({ url: 'https://a.com/2.jpg', filename: '2.jpg', width: 64, height: 64 });
+      testStore.addImage({ url: 'https://a.com/3.jpg', filename: '3.jpg' });
+
+      const filtered = testStore.getFilteredMedia({ minDimensions: { width: 300, height: 300 } });
+      expect(filtered.length).toBe(2);
+      expect(filtered.map(img => img.filename).sort()).toEqual(['1.jpg', '3.jpg']);
+    });
+
     test('应该按搜索关键词过滤', () => {
       testStore.addImage({ url: 'https://a.com/photo.jpg', filename: 'photo.jpg', domain: 'a.com' });
       testStore.addImage({ url: 'https://b.com/avatar.png', filename: 'avatar.png', domain: 'b.com' });

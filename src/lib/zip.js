@@ -114,6 +114,7 @@ export async function createMediaZip(mediaItems, {
   fileNaming = 'original',
   fetchFn = fetch,
   now = new Date(),
+  onProgress = null,
 } = {}) {
   if (!mediaItems.length) {
     throw new Error('没有可打包的资源');
@@ -161,6 +162,10 @@ export async function createMediaZip(mediaItems, {
         media,
         error: error.message,
       });
+    }
+
+    if (onProgress) {
+      onProgress(index + 1, mediaItems.length);
     }
   }
 

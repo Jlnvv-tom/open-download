@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Open Download - 网络图片批量下载器",
-  "version": "1.1.2",
+  "version": "1.2.0",
+  "minimum_chrome_version": "116",
   "description": "监听所有网站的网络请求，自动识别并批量下载图片和视频资源",
   "permissions": [
     "webRequest",
     "downloads",
     "storage",
-    "notifications",
+    "offscreen",
     "contextMenus"
   ],
   "host_permissions": [

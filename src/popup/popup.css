@@ -333,6 +333,21 @@ body {
   width: 58px;
 }
 
+.dimension-control {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dimension-control input {
+  width: 58px;
+}
+
+.dimension-separator {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 .filter-row input:focus {
   border-color: var(--primary);
 }

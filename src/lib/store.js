@@ -366,13 +366,14 @@ class ImageStore {
   // ─── Filtering ───
 
   /**
-   * 根据过滤条件筛选图片
+   * 根据过滤条件筛选媒体
    * @param {Object} filters - 过滤条件对象
    * @param {string[]} filters.domains - 域名白名单
    * @param {string[]} filters.extensions - 扩展名白名单
    * @param {number} filters.minSize - 最小文件大小（字节）
+   * @param {{width: number, height: number}} filters.minDimensions - 最小宽高（尺寸未知的条目保留）
    * @param {string} filters.search - 搜索关键词（匹配 URL、文件名、域名）
-   * @returns {Object[]} 过滤后的图片数组
+   * @returns {Object[]} 过滤后的媒体数组
    */
   getFilteredImages(filters = {}) {
     return this.getFilteredMedia(filters);
@@ -385,10 +386,13 @@ class ImageStore {
       mediaType = '',
       mediaTypes = [],
       minSize = 0,
+      minDimensions = { width: 0, height: 0 },
       search = ''
     } = filters;
     const normalizedExtensions = extensions.map(ext => ext.replace(/^\./, '').toLowerCase());
     const allowedMediaTypes = mediaType ? [mediaType] : mediaTypes;
+    const minDimensionWidth = minDimensions?.width || 0;
+    const minDimensionHeight = minDimensions?.height || 0;
 
     return this.images.filter(img => {
       if (allowedMediaTypes.length > 0 && !allowedMediaTypes.includes(img.mediaType)) {
@@ -405,6 +409,9 @@ class ImageStore {
       }
       // 最小大小
       if (minSize > 0 && img.size < minSize) return false;
+      // 最小宽高（尺寸未知的条目不参与该过滤）
+      if (minDimensionWidth > 0 && img.width > 0 && img.width < minDimensionWidth) return false;
+      if (minDimensionHeight > 0 && img.height > 0 && img.height < minDimensionHeight) return false;
       // 搜索
       if (search) {
         const haystack = `${img.url} ${img.filename} ${img.domain}`.toLowerCase();

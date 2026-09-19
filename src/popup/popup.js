@@ -7,7 +7,6 @@ import {
   VIDEO_FORMAT_TABS
 } from '../lib/constants.js';
 import { formatSize, getNormalizedExtension } from '../lib/utils.js';
-import { createMediaZip, makeZipFilename } from '../lib/zip.js';
 
 // ─── DOM 引用 ──────────────────────────────────────────
 
@@ -31,6 +30,8 @@ const el = {
   btnClear: $('#btn-clear'),
   filterPanel: $('#filter-panel'),
   filterMinSize: $('#filter-min-size'),
+  filterMinWidth: $('#filter-min-width'),
+  filterMinHeight: $('#filter-min-height'),
   contentSizeRange: $('#content-size-range'),
   contentSizeInput: $('#content-size-input'),
   filterExtensions: $('#filter-extensions'),
@@ -76,6 +77,9 @@ async function init() {
     contentSize = savedContentSize === undefined || savedContentSize === 132
       ? DEFAULT_CONTENT_SIZE
       : normalizeContentSize(savedContentSize);
+    const savedMinDimensions = settings.filters?.minDimensions || {};
+    el.filterMinWidth.value = savedMinDimensions.width ? String(savedMinDimensions.width) : '';
+    el.filterMinHeight.value = savedMinDimensions.height ? String(savedMinDimensions.height) : '';
   }
 
   const status = await sendMessage(MESSAGE_TYPES.GET_STATUS);
@@ -142,6 +146,18 @@ function bindEvents() {
   });
 
   el.filterMinSize.addEventListener('input', () => setTimeout(renderMedia, 200));
+  el.filterMinWidth.addEventListener('input', () => {
+    setTimeout(() => {
+      renderMedia();
+      saveMinDimensions();
+    }, 200);
+  });
+  el.filterMinHeight.addEventListener('input', () => {
+    setTimeout(() => {
+      renderMedia();
+      saveMinDimensions();
+    }, 200);
+  });
   el.filterExtensions.addEventListener('input', () => setTimeout(renderMedia, 200));
   el.contentSizeRange.addEventListener('input', () => updateContentSize(el.contentSizeRange.value, false));
   el.contentSizeRange.addEventListener('change', () => saveUiSettings());
@@ -204,13 +220,18 @@ function bindEvents() {
   });
 
   chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === MESSAGE_TYPES.MEDIA_FOUND || message.type === MESSAGE_TYPES.IMAGE_FOUND) {
+    if (message.type === MESSAGE_TYPES.MEDIA_FOUND) {
       allMedia.push(normalizeMedia(message.payload));
       renderMedia();
     }
     if (message.type === MESSAGE_TYPES.MEDIA_DETAILS_UPDATED) {
       allMedia = (message.payload?.images || allMedia).map(normalizeMedia);
       renderMedia();
+    }
+    if (message.type === MESSAGE_TYPES.ZIP_PROGRESS) {
+      if (activeZipButton) {
+        activeZipButton.textContent = `打包中 ${message.payload?.done || 0}/${message.payload?.total || 0}`;
+      }
     }
   });
 }
@@ -248,6 +269,19 @@ function saveUiSettings() {
   });
 }
 
+function saveMinDimensions() {
+  return sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, {
+    settings: {
+      filters: {
+        minDimensions: {
+          width: parseInt(el.filterMinWidth.value, 10) || 0,
+          height: parseInt(el.filterMinHeight.value, 10) || 0,
+        },
+      },
+    },
+  });
+}
+
 function normalizeContentSize(value) {
   const parsed = parseInt(value, 10);
   const size = Number.isFinite(parsed) ? parsed : DEFAULT_CONTENT_SIZE;
@@ -273,6 +307,8 @@ function getManualExtensions() {
 function getFilteredMedia() {
   const search = el.searchInput.value.trim().toLowerCase();
   const minSize = parseInt(el.filterMinSize.value, 10) || 0;
+  const minWidth = parseInt(el.filterMinWidth.value, 10) || 0;
+  const minHeight = parseInt(el.filterMinHeight.value, 10) || 0;
   const manualExtensions = getManualExtensions();
 
   return allMedia.filter(media => {
@@ -280,6 +316,9 @@ function getFilteredMedia() {
     if (activeFormat !== 'all' && media.extension !== activeFormat) return false;
     if (manualExtensions.length > 0 && !manualExtensions.includes(media.extension)) return false;
     if (minSize > 0 && media.size < minSize * 1024) return false;
+    // 最小宽高：尺寸未知的条目不参与该过滤
+    if (minWidth > 0 && media.width > 0 && media.width < minWidth) return false;
+    if (minHeight > 0 && media.height > 0 && media.height < minHeight) return false;
     if (search) {
       const haystack = `${media.url} ${media.filename} ${media.domain} ${media.extension}`.toLowerCase();
       if (!haystack.includes(search)) return false;
@@ -288,48 +327,30 @@ function getFilteredMedia() {
   });
 }
 
-// ─── ZIP 下载 ──────────────────────────────────────────
+// ─── ZIP 下载（打包在 background 的 offscreen document 中进行） ──
+
+let activeZipButton = null;
 
 async function downloadMediaAsZip(mediaItems, button, defaultText) {
   button.disabled = true;
-  button.textContent = '打包中...';
+  activeZipButton = button;
+  button.textContent = `打包中 0/${mediaItems.length}`;
 
   try {
-    const currentSettings = settings || (await sendMessage(MESSAGE_TYPES.GET_SETTINGS)).settings || {};
-    const result = await createMediaZip(mediaItems, {
-      fileNaming: currentSettings.fileNaming || 'original',
+    const result = await sendMessage(MESSAGE_TYPES.DOWNLOAD_ZIP, {
+      ids: mediaItems.map(media => media.id),
     });
 
-    const zipUrl = URL.createObjectURL(result.blob);
-    const zipName = makeZipFilename();
-    const savePath = currentSettings.savePath || 'OpenDownload';
-    await chrome.downloads.download({
-      url: zipUrl,
-      filename: `${savePath}/${zipName}`,
-      saveAs: false,
-      conflictAction: 'uniquify',
-    });
-    setTimeout(() => URL.revokeObjectURL(zipUrl), 60000);
-
-    const succeededIds = result.entries.map(entry => entry.media.id);
-    if (succeededIds.length > 0) {
-      await sendMessage(MESSAGE_TYPES.UPDATE_MEDIA_STATUSES, {
-        ids: succeededIds,
-        status: 'downloaded',
-      });
+    if (result.success) {
+      alert(`ZIP 已下载: 成功 ${result.succeeded} 个, 失败 ${result.failed} 个`);
+      await loadMedia();
+    } else {
+      alert(`打包失败: ${result.error || '未知错误'}`);
     }
-    if (result.errors.length > 0) {
-      await sendMessage(MESSAGE_TYPES.UPDATE_MEDIA_STATUSES, {
-        ids: result.errors.map(item => item.media.id),
-        status: 'failed',
-      });
-    }
-
-    alert(`ZIP 已生成: 成功 ${result.succeeded} 个, 失败 ${result.failed} 个`);
-    await loadMedia();
   } catch (error) {
     alert(`打包失败: ${error.message}`);
   } finally {
+    activeZipButton = null;
     button.disabled = false;
     button.textContent = defaultText;
   }

@@ -70,4 +70,19 @@ describe('zip.js', () => {
     expect(result.failed).toBe(1);
     expect(result.errors[0].media.id).toBe('2');
   });
+
+  test('打包过程应该通过 onProgress 汇报进度', async () => {
+    const fetchFn = jest.fn(async () => makeResponse('image-data'));
+    const progress = [];
+
+    await createMediaZip([
+      { id: '1', url: 'https://example.com/a.jpg', filename: 'a.jpg', domain: 'example.com' },
+      { id: '2', url: 'https://example.com/b.jpg', filename: 'b.jpg', domain: 'example.com' }
+    ], {
+      fetchFn,
+      onProgress: (done, total) => progress.push([done, total])
+    });
+
+    expect(progress).toEqual([[1, 2], [2, 2]]);
+  });
 });

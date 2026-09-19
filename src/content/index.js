@@ -46,15 +46,6 @@
     }, delay);
   }
 
-  // 监听来自 background 的请求
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'COLLECT_IMAGES') {
-      const images = collectImageElements();
-      sendResponse({ success: true, images });
-    }
-    return true;
-  });
-
   // 观察动态加载的图片（MutationObserver）
   let observer = null;
 

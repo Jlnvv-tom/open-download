@@ -1,12 +1,14 @@
 {
   "name": "open-download",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Chrome 扩展 — 全局监听网络请求，自动识别并批量下载图片和视频",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.js",
     "dev": "node scripts/build.js && echo '在 Chrome 中加载 dist 目录: chrome://extensions'",
     "pack": "node scripts/pack.js",
+    "release": "bash scripts/release.sh",
+    "deploy:docs": "gh workflow run deploy-docs.yml && echo '已触发 docs 部署，可用 gh run watch 跟踪进度'",
     "test": "node --experimental-vm-modules --experimental-specifier-resolution=node node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules --experimental-specifier-resolution=node node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules --experimental-specifier-resolution=node node_modules/jest/bin/jest.js --coverage"

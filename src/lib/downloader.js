@@ -4,6 +4,39 @@
 import { generateFilename, sleep, extractDomain } from './utils.js';
 
 /**
+ * 等待某个下载任务完成
+ * @param {number} downloadId - Chrome 下载 ID
+ * @param {number} timeoutMs - 超时时间（毫秒）
+ * @returns {Promise<void>} 下载完成时 resolve，失败时 reject
+ * @throws {Error} 下载超时或中断时抛出错误
+ */
+function waitForDownload(downloadId, timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      chrome.downloads.onChanged.removeListener(listener);
+      reject(new Error('下载超时'));
+    }, timeoutMs);
+
+    const listener = (delta) => {
+      if (delta.id !== downloadId) return;
+      if (delta.state) {
+        if (delta.state.current === 'complete') {
+          clearTimeout(timeout);
+          chrome.downloads.onChanged.removeListener(listener);
+          resolve();
+        } else if (delta.state.current === 'interrupted') {
+          clearTimeout(timeout);
+          chrome.downloads.onChanged.removeListener(listener);
+          reject(new Error('下载中断'));
+        }
+      }
+    };
+
+    chrome.downloads.onChanged.addListener(listener);
+  });
+}
+
+/**
  * 下载管理器类
  * 负责批量下载的并发控制、队列管理、状态追踪
  * @class DownloadManager
@@ -99,29 +132,7 @@ class DownloadManager {
    * @throws {Error} 下载超时或中断时抛出错误
    */
   _waitForDownload(downloadId) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        chrome.downloads.onChanged.removeListener(listener);
-        reject(new Error('下载超时'));
-      }, 120000); // 2分钟超时
-
-      const listener = (delta) => {
-        if (delta.id !== downloadId) return;
-        if (delta.state) {
-          if (delta.state.current === 'complete') {
-            clearTimeout(timeout);
-            chrome.downloads.onChanged.removeListener(listener);
-            resolve();
-          } else if (delta.state.current === 'interrupted') {
-            clearTimeout(timeout);
-            chrome.downloads.onChanged.removeListener(listener);
-            reject(new Error('下载中断'));
-          }
-        }
-      };
-
-      chrome.downloads.onChanged.addListener(listener);
-    });
+    return waitForDownload(downloadId);
   }
 
   /**
@@ -176,5 +187,4 @@ class DownloadManager {
   }
 }
 
-export { DownloadManager };
-export const downloader = new DownloadManager(null); // 延迟绑定 store
+export { DownloadManager, waitForDownload };

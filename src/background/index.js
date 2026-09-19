@@ -3,7 +3,8 @@
 
 import { MESSAGE_TYPES } from '../lib/constants.js';
 import { store } from '../lib/store.js';
-import { DownloadManager } from '../lib/downloader.js';
+import { DownloadManager, waitForDownload } from '../lib/downloader.js';
+import { makeZipFilename } from '../lib/zip.js';
 import {
   detectMediaType,
   extensionFromMimeType,
@@ -16,22 +17,24 @@ import {
 
 const downloader = new DownloadManager(store);
 
-let isListening = false;
-
 // ─── 网络请求监听 ──────────────────────────────────────
 
 /**
  * 监听所有网络请求完成事件
  * 不区分网站，全局监听 <all_urls>
+ *
+ * 注意：监听器在模块顶层注册（而非开关控制注册），SW 每次启动都会重新挂载，
+ * 休眠期间的请求可唤醒 SW，避免事件丢失；是否捕获由 settings.enabled 决定。
  */
 async function onRequestCompleted(details) {
-  if (!isListening) return;
-  await store.init();
-
   // 过滤浏览器内部协议
   if (details.url.startsWith('chrome://') || details.url.startsWith('chrome-extension://')) {
     return;
   }
+
+  await store.init();
+  const settings = store.getSettings();
+  if (!settings.enabled) return;
 
   // 获取响应头中的 Content-Type 和 Content-Length
   let mimeType = '';
@@ -55,9 +58,13 @@ async function onRequestCompleted(details) {
   });
   if (!mediaType) return;
 
+  // 媒体类型白名单（空 = 全部捕获）
+  if (settings.filters.mediaTypes.length > 0 && !settings.filters.mediaTypes.includes(mediaType)) {
+    return;
+  }
+
   const filename = extractFilename(details.url);
   const domain = extractDomain(details.url);
-  const settings = store.getSettings();
   const extension = getNormalizedExtension(filename || details.url) || extensionFromMimeType(mimeType);
 
   // 域名过滤
@@ -103,7 +110,7 @@ async function onRequestCompleted(details) {
   });
 
   if (media) {
-    // 通知 popup 有新图片
+    // 通知 popup 有新媒体
     chrome.runtime.sendMessage({
       type: MESSAGE_TYPES.MEDIA_FOUND,
       payload: media,
@@ -118,38 +125,168 @@ async function onRequestCompleted(details) {
   }
 }
 
+// 监听器顶层注册：SW 每次启动同步挂载，开关只影响捕获逻辑本身
+chrome.webRequest.onCompleted.addListener(
+  onRequestCompleted,
+  { urls: ['<all_urls>'] },
+  ['responseHeaders']
+);
+
+// ─── Offscreen ZIP 打包 ────────────────────────────────
+// ZIP 在 offscreen document 中构建，Popup 关闭不会中断打包。
+
+const ZIP_BUILD_TIMEOUT = 300000; // 打包超时（毫秒）
+
+let zipBuild = null;         // 进行中的打包任务 { resolve, reject }
+let offscreenReady = false;  // offscreen 文档是否已发送就绪握手
+let offscreenReadyWaiters = [];
+
+function markOffscreenReady() {
+  offscreenReady = true;
+  offscreenReadyWaiters.forEach(resolve => resolve());
+  offscreenReadyWaiters = [];
+}
+
 /**
- * 监听响应头接收 — 用于捕获更精确的图片信息
+ * 等待 offscreen 文档就绪。
+ * SW 重启后文档可能早已就绪但握手已丢失，超时后直接放行，
+ * 由后续发送失败重试兜底。
  */
-function onHeadersReceived(details) {
-  if (!isListening) return;
-  if (details.type !== 'image' && details.type !== 'media') return;
-
-  // 这里只做被动监听，不拦截
-  // 实际图片信息在 onCompleted 中处理
+function waitForOffscreenReady(timeoutMs = 5000) {
+  if (offscreenReady) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      offscreenReadyWaiters = offscreenReadyWaiters.filter(waiter => waiter !== done);
+      resolve();
+    }, timeoutMs);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    offscreenReadyWaiters.push(done);
+  });
 }
 
-// ─── 监听器注册 ────────────────────────────────────────
+async function ensureOffscreenDocument() {
+  if (chrome.runtime.getContexts) {
+    const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+    if (contexts && contexts.length > 0) return;
+  }
 
-function startListening() {
-  if (isListening) return;
-
-  chrome.webRequest.onCompleted.addListener(
-    onRequestCompleted,
-    { urls: ['<all_urls>'] },
-    ['responseHeaders']
-  );
-
-  isListening = true;
-  console.log('[OpenDownload] 监听已启动');
+  offscreenReady = false;
+  try {
+    await chrome.offscreen.createDocument({
+      url: 'offscreen/index.html',
+      reasons: ['BLOBS'],
+      justification: '批量打包媒体资源为 ZIP',
+    });
+  } catch (error) {
+    // 并发创建时可能报"已存在"，此时文档同样可用
+    if (!/single offscreen document|already exists/i.test(error.message || '')) {
+      throw error;
+    }
+  }
 }
 
-function stopListening() {
-  if (!isListening) return;
+async function closeOffscreenDocument() {
+  if (chrome.runtime.getContexts) {
+    const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+    if (!contexts || contexts.length === 0) return;
+  }
+  offscreenReady = false;
+  await chrome.offscreen.closeDocument();
+}
 
-  chrome.webRequest.onCompleted.removeListener(onRequestCompleted);
-  isListening = false;
-  console.log('[OpenDownload] 监听已停止');
+/**
+ * 在 offscreen document 中打包并触发 ZIP 下载
+ * @param {Object} payload - { ids: string[] }
+ * @returns {Promise<{succeeded: number, failed: number}>}
+ */
+async function handleDownloadZip(payload) {
+  await store.init();
+  if (zipBuild) {
+    throw new Error('已有打包任务进行中，请稍后再试');
+  }
+
+  const ids = payload?.ids || [];
+  const items = ids.map(id => store.getImageById(id)).filter(Boolean);
+  if (items.length === 0) {
+    throw new Error('没有可下载的资源');
+  }
+
+  const settings = store.getSettings();
+  await ensureOffscreenDocument();
+  await waitForOffscreenReady();
+
+  const zipName = makeZipFilename();
+  const result = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (zipBuild) {
+        zipBuild = null;
+        reject(new Error('ZIP 打包超时'));
+      }
+    }, ZIP_BUILD_TIMEOUT);
+
+    zipBuild = {
+      resolve: (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      reject: (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    };
+
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.ZIP_BUILD_REQUEST,
+      payload: {
+        zipName,
+        fileNaming: settings.fileNaming || 'original',
+        items,
+      },
+    }).catch(error => {
+      if (zipBuild) {
+        const { reject: rejectBuild } = zipBuild;
+        zipBuild = null;
+        rejectBuild(error);
+      }
+    });
+  });
+
+  if (result?.error) {
+    await closeOffscreenDocument().catch(() => {});
+    throw new Error(result.error);
+  }
+
+  const downloadId = await chrome.downloads.download({
+    url: result.blobUrl,
+    filename: `${settings.savePath || 'OpenDownload'}/${result.zipName || zipName}`,
+    saveAs: false,
+    conflictAction: 'uniquify',
+  });
+
+  let downloadError = null;
+  try {
+    await waitForDownload(downloadId);
+  } catch (error) {
+    downloadError = error;
+  } finally {
+    // blob URL 随 offscreen 文档销毁失效，确保下载结束后再关闭文档
+    await closeOffscreenDocument().catch(() => {});
+  }
+  if (downloadError) {
+    throw downloadError;
+  }
+
+  if (result.succeededIds?.length) {
+    result.succeededIds.forEach(id => store.updateMediaStatus(id, 'downloaded'));
+  }
+  if (result.failedItems?.length) {
+    result.failedItems.forEach(item => store.updateMediaStatus(item.id, 'failed'));
+  }
+
+  return { succeeded: result.succeeded, failed: result.failed };
 }
 
 // ─── 消息处理 ──────────────────────────────────────────
@@ -160,21 +297,10 @@ function handleRuntimeMessage(message, sender, sendResponse) {
       switch (message.type) {
         case MESSAGE_TYPES.TOGGLE_LISTENING: {
           await store.init();
-          const settings = store.getSettings();
-          if (message.payload?.enabled !== undefined) {
-            await store.saveSettings({ enabled: message.payload.enabled });
-            if (message.payload.enabled) {
-              startListening();
-            } else {
-              stopListening();
-            }
-          } else {
-            if (settings.enabled) {
-              startListening();
-            } else {
-              stopListening();
-            }
-          }
+          const enabled = message.payload?.enabled !== undefined
+            ? message.payload.enabled
+            : !store.getSettings().enabled;
+          await store.saveSettings({ enabled });
           sendResponse({ success: true, enabled: store.getSettings().enabled });
           break;
         }
@@ -226,6 +352,12 @@ function handleRuntimeMessage(message, sender, sendResponse) {
           break;
         }
 
+        case MESSAGE_TYPES.DOWNLOAD_ZIP: {
+          const result = await handleDownloadZip(message.payload);
+          sendResponse({ success: true, ...result });
+          break;
+        }
+
         case MESSAGE_TYPES.REMOVE_IMAGE: {
           store.removeImage(message.payload?.id);
           sendResponse({ success: true });
@@ -235,11 +367,6 @@ function handleRuntimeMessage(message, sender, sendResponse) {
         case MESSAGE_TYPES.UPDATE_SETTINGS: {
           await store.init();
           const newSettings = await store.saveSettings(message.payload?.settings || {});
-          if (newSettings.enabled) {
-            startListening();
-          } else {
-            stopListening();
-          }
           sendResponse({ success: true, settings: newSettings });
           break;
         }
@@ -290,6 +417,32 @@ function handleRuntimeMessage(message, sender, sendResponse) {
           break;
         }
 
+        case MESSAGE_TYPES.ZIP_OFFSCREEN_READY: {
+          markOffscreenReady();
+          sendResponse({ success: true });
+          break;
+        }
+
+        case MESSAGE_TYPES.ZIP_BUILD_PROGRESS: {
+          // 转播打包进度给 popup
+          chrome.runtime.sendMessage({
+            type: MESSAGE_TYPES.ZIP_PROGRESS,
+            payload: message.payload,
+          }).catch(() => {});
+          sendResponse({ success: true });
+          break;
+        }
+
+        case MESSAGE_TYPES.ZIP_BUILD_RESULT: {
+          if (zipBuild) {
+            const { resolve } = zipBuild;
+            zipBuild = null;
+            resolve(message.payload);
+          }
+          sendResponse({ success: true });
+          break;
+        }
+
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }
@@ -308,7 +461,6 @@ chrome.runtime.onMessage.addListener(handleRuntimeMessage);
 
 chrome.runtime.onInstalled.addListener(async () => {
   await store.init();
-  const settings = store.getSettings();
 
   // 创建右键菜单
   chrome.contextMenus.create({
@@ -323,11 +475,6 @@ chrome.runtime.onInstalled.addListener(async () => {
     contexts: ['action'],
   });
 
-  // 如果之前是开启状态，恢复监听
-  if (settings.enabled) {
-    startListening();
-  }
-
   console.log('[OpenDownload] 扩展已安装');
 });
 
@@ -340,11 +487,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const settings = store.getSettings();
       const newEnabled = !settings.enabled;
       await store.saveSettings({ enabled: newEnabled });
-      if (newEnabled) {
-        startListening();
-      } else {
-        stopListening();
-      }
       // 通知 popup 更新状态
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPES.TOGGLE_LISTENING,
@@ -359,20 +501,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// ─── Service Worker 启动时恢复状态 ─────────────────────
-
-chrome.runtime.onStartup.addListener(async () => {
-  await store.init();
-  const settings = store.getSettings();
-  if (settings.enabled) {
-    startListening();
-  }
-  console.log('[OpenDownload] Service Worker 已启动');
-});
-
 export {
   handleRuntimeMessage,
   onRequestCompleted,
-  startListening,
-  stopListening,
+  ensureOffscreenDocument,
 };
