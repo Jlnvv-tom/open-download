@@ -208,6 +208,22 @@ export function urlDedupeKey(url) {
 }
 
 /**
+ * 格式化视频时长
+ * @param {number} seconds - 时长（秒）
+ * @returns {string} 'mm:ss' 或 'h:mm:ss'，无效值返回空字符串
+ */
+export function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '';
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(secs).padStart(2, '0');
+  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/**
  * 延迟函数
  * @param {number} ms - 延迟毫秒数
  * @returns {Promise<void>} Promise，在指定时间后 resolve

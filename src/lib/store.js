@@ -73,6 +73,8 @@ class ImageStore {
       capturedAt: image.capturedAt || Date.now(),
       tabUrl: image.tabUrl || '',
       tabTitle: image.tabTitle || '',
+      // 老数据无 source，统一归一为网络捕获
+      source: image.source === 'dom' ? 'dom' : 'network',
       downloaded: Boolean(image.downloaded),
       status: image.status || 'pending',
     };
@@ -105,6 +107,7 @@ class ImageStore {
 
   /**
    * 保存设置到 chrome.storage
+   * ui/filters 键级深合并；siteRules 整表替换（调用方需发送完整表）
    * @param {Object} partial - 部分设置对象
    * @returns {Promise<Object>} 更新后的完整设置对象
    */
@@ -112,6 +115,7 @@ class ImageStore {
     this.settings = this._mergeSettings({
       ...this.settings,
       ...partial,
+      // siteRules 不做键级合并：partial.siteRules 存在即整表替换
       ui: {
         ...(this.settings.ui || {}),
         ...(partial.ui || {}),
@@ -215,6 +219,7 @@ class ImageStore {
       capturedAt: Date.now(),
       tabUrl: mediaData.tabUrl || '',
       tabTitle: mediaData.tabTitle || '',
+      source: mediaData.source === 'dom' ? 'dom' : 'network',
       downloaded: false,
       status: 'pending', // pending | downloading | downloaded | failed
     };
@@ -274,6 +279,20 @@ class ImageStore {
   }
 
   /**
+   * 按 URL（去重 key）查找媒体记录
+   * @param {string} url - 媒体 URL
+   * @returns {Object|undefined} 首条匹配的记录，未找到返回 undefined
+   */
+  findMediaByUrl(url) {
+    const key = urlDedupeKey(url);
+    return this.images.find(img => this._matchesUrl(img, key));
+  }
+
+  _matchesUrl(img, key) {
+    return urlDedupeKey(img.url) === key;
+  }
+
+  /**
    * 更新图片的下载状态
    * @param {string} id - 图片 ID
    * @param {string} status - 状态: 'pending' | 'downloading' | 'downloaded' | 'failed'
@@ -309,7 +328,7 @@ class ImageStore {
     let updatedCount = 0;
 
     for (const img of this.images) {
-      if (urlDedupeKey(img.url) !== key) continue;
+      if (!this._matchesUrl(img, key)) continue;
 
       let changed = false;
       if (details.width > 0 && img.width !== details.width) {
@@ -326,6 +345,11 @@ class ImageStore {
       }
       if (details.previewUrl && img.previewUrl !== details.previewUrl) {
         img.previewUrl = details.previewUrl;
+        changed = true;
+      }
+      // 时长仅在原值缺省时填充，避免覆盖已有值
+      if (details.duration > 0 && !img.duration) {
+        img.duration = details.duration;
         changed = true;
       }
 

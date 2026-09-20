@@ -90,13 +90,18 @@ export const DEFAULT_SETTINGS = {
     viewMode: 'list',
     mediaType: 'image',
     contentSize: 104,
+    groupByPage: false,   // 列表视图按来源页面分组
+    sourceFilter: 'all',  // 来源筛选: 'all' | 'network' | 'dom'
   },
   filters: {
     domains: [],          // 排除的域名列表
     extensions: [],       // 只下载的扩展名 (空 = 全部)
     mediaTypes: [],
     minDimensions: { width: 0, height: 0 }, // 最小尺寸
-  }
+  },
+  // 站点级捕获规则：{ [domain]: 'block' | 'allow' }，缺省（无键）= 跟随全局开关
+  // saveSettings 对该表整表替换，调用方需发送完整表
+  siteRules: {},
 };
 
 /**
@@ -115,7 +120,11 @@ export const MESSAGE_TYPES = {
   REMOVE_IMAGE: 'REMOVE_IMAGE',
   UPDATE_SETTINGS: 'UPDATE_SETTINGS',
   GET_SETTINGS: 'GET_SETTINGS',
-  CONTENT_IMAGES_UPDATE: 'CONTENT_IMAGES_UPDATE',
+  DOM_MEDIA_UPDATE: 'DOM_MEDIA_UPDATE',
+  SITE_RULES_CHANGED: 'SITE_RULES_CHANGED',
+  SCROLL_CAPTURE_START: 'SCROLL_CAPTURE_START',
+  SCROLL_CAPTURE_STOP: 'SCROLL_CAPTURE_STOP',
+  SCROLL_CAPTURE_STATE: 'SCROLL_CAPTURE_STATE',
   MEDIA_FOUND: 'MEDIA_FOUND',
   MEDIA_DETAILS_UPDATED: 'MEDIA_DETAILS_UPDATED',
   DOWNLOAD_STATUS_CHANGED: 'DOWNLOAD_STATUS_CHANGED',

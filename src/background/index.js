@@ -17,6 +17,19 @@ import {
 
 const downloader = new DownloadManager(store);
 
+/**
+ * 站点级捕获判定（webRequest 与 DOM 两条链路共用）
+ * 全局开关优先：站点规则不能在全局关闭时反向打开捕获
+ * @param {Object} settings - 完整设置对象
+ * @param {string} domain - 来源页域名，空值表示无站点上下文（如 tabId -1），跟随全局
+ * @returns {boolean} 是否允许捕获
+ */
+function isCaptureAllowed(settings, domain) {
+  if (!settings.enabled) return false;
+  if (!domain) return true;
+  return settings.siteRules?.[domain] !== 'block';
+}
+
 // downloader 事件 → 广播给 popup（下载状态变化目前没有其他回传通道）
 // 顶层注册与 webRequest 监听器同一策略：SW 每次启动即挂载
 const DOWNLOAD_EVENT_STATUS = {
@@ -115,6 +128,11 @@ async function onRequestCompleted(details) {
       tabUrl = tab.url || '';
       tabTitle = tab.title || '';
     }).catch(() => {});
+  }
+
+  // 站点级规则：按来源页域名判定（无站点上下文时跟随全局）
+  if (!isCaptureAllowed(settings, tabUrl ? extractDomain(tabUrl) : '')) {
+    return;
   }
 
   const media = store.addMedia({
@@ -307,6 +325,124 @@ async function handleDownloadZip(payload) {
   }
 
   return { succeeded: result.succeeded, failed: result.failed };
+}
+
+// ─── DOM 兜底捕获（content script 扫描结果入库） ───────
+
+/**
+ * 处理 content script 上报的页面媒体元素：
+ * 已存在记录只富化尺寸/时长/封面；webRequest 漏捕的资源兜底入库（source='dom'）。
+ * @param {Object} payload - { pageUrl, pageDomain, pageTitle, images: [], videos: [] }
+ * @returns {Promise<{added: number, updated: number}>}
+ */
+async function handleDomMediaUpdate(payload) {
+  await store.init();
+  const settings = store.getSettings();
+
+  // 生效判定：全局开关 + 站点规则（与 webRequest 链路同一函数）
+  if (!isCaptureAllowed(settings, payload?.pageDomain || '')) {
+    return { added: 0, updated: 0 };
+  }
+
+  const pageUrl = payload?.pageUrl || '';
+  const pageTitle = payload?.pageTitle || '';
+  const candidates = [
+    ...(payload?.images || []).map(item => ({ ...item, elementMediaType: 'image' })),
+    ...(payload?.videos || []).map(item => ({
+      ...item,
+      // poster 映射为预览封面
+      previewUrl: item.poster || item.previewUrl || '',
+      elementMediaType: 'video',
+    })),
+  ];
+
+  let added = 0;
+  let enriched = 0;
+
+  for (const candidate of candidates) {
+    const url = candidate.url || '';
+    // blob:/data: 不可重复下载或体积不可控；空 URL（如 blob 流媒体视频仅剩 poster）跳过
+    if (!url || url.startsWith('blob:') || url.startsWith('data:')) continue;
+
+    const mediaType = detectMediaType({ url }) || candidate.elementMediaType;
+    if (!mediaType) continue;
+
+    // 捕获期过滤沿用设置；DOM 无 Content-Length，大小过滤不适用
+    if (settings.filters.mediaTypes.length > 0 && !settings.filters.mediaTypes.includes(mediaType)) continue;
+
+    const domain = extractDomain(url);
+    if (settings.filters.domains.length > 0 && settings.filters.domains.includes(domain)) continue;
+
+    const extension = getNormalizedExtension(url);
+    if (settings.filters.extensions.length > 0 && !settings.filters.extensions.includes(extension)) continue;
+
+    const details = {
+      width: candidate.width,
+      height: candidate.height,
+      alt: candidate.alt,
+      previewUrl: candidate.previewUrl,
+      duration: candidate.duration,
+    };
+    enriched += store.updateImageDetailsByUrl(url, details);
+
+    if (store.findMediaByUrl(url)) continue;
+
+    const media = store.addMedia({
+      mediaType,
+      url,
+      filename: extractFilename(url),
+      extension: extension || extensionFromMimeType(''),
+      domain,
+      mimeType: '',
+      size: 0,
+      width: candidate.width || 0,
+      height: candidate.height || 0,
+      duration: candidate.duration || 0,
+      alt: candidate.alt || '',
+      previewUrl: candidate.previewUrl || url,
+      tabUrl: pageUrl,
+      tabTitle: pageTitle,
+      source: 'dom',
+    });
+
+    if (media) {
+      added++;
+      chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.MEDIA_FOUND,
+        payload: media,
+      }).catch(() => {});
+    }
+  }
+
+  if (enriched > 0) {
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.MEDIA_DETAILS_UPDATED,
+      payload: { images: store.getImages() },
+    }).catch(() => {});
+  }
+
+  return { added, updated: enriched };
+}
+
+// ─── 自动滚动抓取路由（popup → content script） ────────
+
+async function routeScrollCapture(type) {
+  let tab;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch {
+    return { success: false, error: '未找到活动标签页' };
+  }
+  if (!tab?.id) {
+    return { success: false, error: '未找到活动标签页' };
+  }
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type });
+    return { success: true };
+  } catch {
+    // 页面无 content script（chrome:// 等）
+    return { success: false, error: '当前页面不支持滚动抓取' };
+  }
 }
 
 // ─── 消息处理 ──────────────────────────────────────────

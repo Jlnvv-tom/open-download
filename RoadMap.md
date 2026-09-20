@@ -83,6 +83,9 @@
 
 ### v1.4 捕获增强（目标：对齐「看到的都能下」，补视频信息）
 
+> 逐任务实现方案、边界情况与测试计划详见
+> [specs/features/v14-capture-enhancement/2026-09-20-v14-capture-enhancement-design.md](specs/features/v14-capture-enhancement/2026-09-20-v14-capture-enhancement-design.md)。
+
 - [ ] **V14-01（P0）DOM 扫描兜底捕获**
   - 涉及：`src/content/index.js`（从「仅回填尺寸」扩展为「未捕获资源入库」）、`src/background/index.js`（`CONTENT_IMAGES_UPDATE` 处理扩展）、`src/lib/store.js`（记录增加 `source: 'dom' | 'network'` 字段）
   - 方案：content script 扫描 `img[src]`、`video[src/poster]`，与已捕获记录按 URL 合并去重；`filters.minDimensions` 等捕获期过滤沿用设置
