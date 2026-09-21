@@ -99,6 +99,20 @@ export const DEFAULT_SETTINGS = {
     mediaTypes: [],
     minDimensions: { width: 0, height: 0 }, // 最小尺寸
   },
+  // 批量下载策略阈值（V15-01）：超阈值改为逐条直下，规避 ZIP 全内存构建
+  transfer: {
+    bypassFileSize: 50 * 1024 * 1024,     // 单文件超过此值：整批改直下
+    bypassBatchSize: 500 * 1024 * 1024,   // 整批预估超过此值：整批改直下
+    // size 未知（DOM 源，无 Content-Length）的视频按此值保守估算；
+    // 默认取值高于 bypassFileSize，确保这类视频走直下而不是赌它很小
+    unknownVideoSize: 60 * 1024 * 1024,
+    maxZipFiles: 200,                     // 单卷最大文件数
+    maxZipBytes: 500 * 1024 * 1024,       // 单卷预估字节上限
+    maxConcurrencyForLarge: 2,            // 直下大文件时的并发上限
+    downloadTimeoutMs: 1800000,           // 直下单文件等待超时（30 分钟）
+  },
+  // ZIP 打包是否携带 Cookie（V15-02）：默认关闭，需用户显式开启
+  sendCookies: false,
   // 站点级捕获规则：{ [domain]: 'block' | 'allow' }，缺省（无键）= 跟随全局开关
   // saveSettings 对该表整表替换，调用方需发送完整表
   siteRules: {},

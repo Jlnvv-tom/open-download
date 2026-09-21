@@ -44,6 +44,11 @@ class ImageStore {
           ...(partial.filters?.minDimensions || {}),
         },
       },
+      // 与 ui/filters 同构的键级合并，避免部分提交时整组被覆盖
+      transfer: {
+        ...DEFAULT_SETTINGS.transfer,
+        ...(partial.transfer || {}),
+      },
     };
   }
 
@@ -123,6 +128,10 @@ class ImageStore {
       filters: {
         ...(this.settings.filters || {}),
         ...(partial.filters || {}),
+      },
+      transfer: {
+        ...(this.settings.transfer || {}),
+        ...(partial.transfer || {}),
       },
     });
     await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: this.settings });
@@ -416,7 +425,8 @@ class ImageStore {
       mediaTypes = [],
       minSize = 0,
       minDimensions = { width: 0, height: 0 },
-      search = ''
+      search = '',
+      source = ''
     } = filters;
     const normalizedExtensions = extensions.map(ext => ext.replace(/^\./, '').toLowerCase());
     const allowedMediaTypes = mediaType ? [mediaType] : mediaTypes;
@@ -425,6 +435,10 @@ class ImageStore {
 
     return this.images.filter(img => {
       if (allowedMediaTypes.length > 0 && !allowedMediaTypes.includes(img.mediaType)) {
+        return false;
+      }
+      // 来源筛选：'network' | 'dom'（空 = 不过滤），老数据归一为 network
+      if (source && (img.source || 'network') !== source) {
         return false;
       }
       // 域名过滤

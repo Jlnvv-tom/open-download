@@ -1,10 +1,11 @@
 // background/index.js
 // Service Worker — 核心监听 + 消息处理
 
-import { MESSAGE_TYPES } from '../lib/constants.js';
+import { DEFAULT_SETTINGS, MEDIA_TYPES, MESSAGE_TYPES } from '../lib/constants.js';
 import { store } from '../lib/store.js';
 import { DownloadManager, waitForDownload } from '../lib/downloader.js';
 import { makeZipFilename } from '../lib/zip.js';
+import { t } from '../lib/i18n.js';
 import {
   detectMediaType,
   extensionFromMimeType,
@@ -176,6 +177,7 @@ chrome.webRequest.onCompleted.addListener(
 const ZIP_BUILD_TIMEOUT = 300000; // 打包超时（毫秒）
 
 let zipBuild = null;         // 进行中的打包任务 { resolve, reject }
+let batchInProgress = false; // 批量下载（含多卷）进行中：卷与卷之间 zipBuild 会短暂为 null，需要独立标记
 let offscreenReady = false;  // offscreen 文档是否已发送就绪握手
 let offscreenReadyWaiters = [];
 
@@ -235,33 +237,113 @@ async function closeOffscreenDocument() {
   await chrome.offscreen.closeDocument();
 }
 
+// ─── 批量下载策略编排（V15-01） ────────────────────────
+
+const FAILURE_SUMMARY_LIMIT = 5; // 回传 UI 的失败原因条数上限
+
 /**
- * 在 offscreen document 中打包并触发 ZIP 下载
- * @param {Object} payload - { ids: string[] }
- * @returns {Promise<{succeeded: number, failed: number}>}
+ * 估算单条媒体的字节数
+ * DOM 兜底捕获（source='dom'）没有 Content-Length、size 为 0：
+ * 视频按保守值估算（避免漏判大文件），图片按 0 计
  */
-async function handleDownloadZip(payload) {
-  await store.init();
-  if (zipBuild) {
-    throw new Error('已有打包任务进行中，请稍后再试');
+function estimateSize(media, limits) {
+  const size = Number(media?.size) || 0;
+  if (size > 0) return size;
+  return media?.mediaType === MEDIA_TYPES.VIDEO ? limits.unknownVideoSize : 0;
+}
+
+/**
+ * 按卷上限切分批次（maxZipFiles 与 maxZipBytes 任一先到即切开）
+ */
+function splitVolumes(items, sizes, limits) {
+  const volumes = [];
+  let current = [];
+  let currentBytes = 0;
+
+  items.forEach((item, index) => {
+    const size = sizes[index];
+    const wouldExceed = current.length > 0
+      && (current.length + 1 > limits.maxZipFiles || currentBytes + size > limits.maxZipBytes);
+
+    if (wouldExceed) {
+      volumes.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+
+    current.push(item);
+    currentBytes += size;
+  });
+
+  if (current.length > 0) volumes.push(current);
+  return volumes;
+}
+
+/**
+ * 决定批量下载策略（导出供单测）
+ * 单文件超阈值或整批预估超阈值 → 逐条直下；否则 ZIP 打包并按卷上限切分
+ * @param {Object[]} items - 媒体记录
+ * @param {Object} settings - 完整设置对象
+ * @returns {{strategy: 'direct'|'zip', reason: string, volumes: Object[][]}}
+ */
+function planTransfer(items = [], settings = {}) {
+  const limits = { ...DEFAULT_SETTINGS.transfer, ...(settings.transfer || {}) };
+  const sizes = items.map(item => estimateSize(item, limits));
+
+  if (sizes.some(size => size > limits.bypassFileSize)) {
+    return { strategy: 'direct', reason: 'large-file', volumes: [] };
+  }
+  if (sizes.reduce((sum, size) => sum + size, 0) > limits.bypassBatchSize) {
+    return { strategy: 'direct', reason: 'large-batch', volumes: [] };
   }
 
-  const ids = payload?.ids || [];
-  const items = ids.map(id => store.getImageById(id)).filter(Boolean);
-  if (items.length === 0) {
-    throw new Error('没有可下载的资源');
+  return { strategy: 'zip', reason: '', volumes: splitVolumes(items, sizes, limits) };
+}
+
+/**
+ * 逐条直下：复用 downloader 并发队列，浏览器流式落盘不占用扩展内存
+ */
+async function handleDirectDownload(items, settings) {
+  const limits = { ...DEFAULT_SETTINGS.transfer, ...(settings.transfer || {}) };
+  const previousTimeout = downloader.downloadTimeout;
+
+  // 大文件要放宽等待超时，避免被默认 120s 误判失败
+  downloader.setDownloadTimeout(limits.downloadTimeoutMs);
+
+  try {
+    const results = await downloader.downloadBatch(items, {
+      maxConcurrency: limits.maxConcurrencyForLarge,
+    });
+    const failures = results.filter(result => !result.success && !result.cancelled);
+
+    return {
+      succeeded: results.filter(result => result.success).length,
+      failed: failures.length,
+      strategy: 'direct',
+      volumes: [],
+      failedItems: failures
+        .slice(0, FAILURE_SUMMARY_LIMIT)
+        .map(result => ({ id: result.image.id, error: result.error || '' })),
+    };
+  } finally {
+    downloader.setDownloadTimeout(previousTimeout);
   }
+}
 
-  const settings = store.getSettings();
-  await ensureOffscreenDocument();
-  await waitForOffscreenReady();
-
-  const zipName = makeZipFilename();
-  const result = await new Promise((resolve, reject) => {
+/**
+ * 向 offscreen 发起一次打包并等待结果
+ * 超时错误带上卷号与资源数，避免「点了没反应」
+ */
+function requestZipBuild({ zipName, items, settings, volume, volumes }) {
+  return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       if (zipBuild) {
         zipBuild = null;
-        reject(new Error('ZIP 打包超时'));
+        reject(new Error(
+          volumes > 1
+            ? t('errorZipTimeoutVolume', volume, volumes, items.length)
+            : t('errorZipTimeout', items.length)
+        ));
       }
     }, ZIP_BUILD_TIMEOUT);
 
@@ -281,6 +363,9 @@ async function handleDownloadZip(payload) {
       payload: {
         zipName,
         fileNaming: settings.fileNaming || 'original',
+        sendCookies: Boolean(settings.sendCookies),
+        volume,
+        volumes,
         items,
       },
     }).catch(error => {
@@ -291,6 +376,18 @@ async function handleDownloadZip(payload) {
       }
     });
   });
+}
+
+/**
+ * 打包并下载单个 ZIP 卷
+ * 每卷结束后立即回写该卷条目状态，前序卷结果不因后续失败而丢失
+ */
+async function buildZipVolume(items, settings, { volume, volumes }) {
+  await ensureOffscreenDocument();
+  await waitForOffscreenReady();
+
+  const zipName = makeZipFilename(new Date(), { volume, volumes });
+  const result = await requestZipBuild({ zipName, items, settings, volume, volumes });
 
   if (result?.error) {
     await closeOffscreenDocument().catch(() => {});
@@ -313,18 +410,88 @@ async function handleDownloadZip(payload) {
     // blob URL 随 offscreen 文档销毁失效，确保下载结束后再关闭文档
     await closeOffscreenDocument().catch(() => {});
   }
-  if (downloadError) {
-    throw downloadError;
+
+  (result.succeededIds || []).forEach(id => store.updateMediaStatus(id, 'downloaded'));
+  (result.failedItems || []).forEach(item => store.updateMediaStatus(item.id, 'failed'));
+
+  if (downloadError) throw downloadError;
+
+  return {
+    zipName: result.zipName || zipName,
+    succeeded: result.succeeded,
+    failed: result.failed,
+    failedItems: result.failedItems || [],
+  };
+}
+
+/**
+ * ZIP 分卷打包：逐卷串行（offscreen 同一时刻只有一个打包任务）
+ */
+async function handleZipDownload(items, settings, volumes) {
+  let succeeded = 0;
+  let failed = 0;
+  const failures = [];
+  const volumeNames = [];
+
+  for (let index = 0; index < volumes.length; index++) {
+    const result = await buildZipVolume(volumes[index], settings, {
+      volume: index + 1,
+      volumes: volumes.length,
+    });
+
+    volumeNames.push(result.zipName);
+    succeeded += result.succeeded;
+    failed += result.failed;
+    failures.push(...result.failedItems);
   }
 
-  if (result.succeededIds?.length) {
-    result.succeededIds.forEach(id => store.updateMediaStatus(id, 'downloaded'));
-  }
-  if (result.failedItems?.length) {
-    result.failedItems.forEach(item => store.updateMediaStatus(item.id, 'failed'));
+  return {
+    succeeded,
+    failed,
+    strategy: 'zip',
+    volumes: volumeNames,
+    failedItems: failures.slice(0, FAILURE_SUMMARY_LIMIT),
+  };
+}
+
+/**
+ * 批量下载入口：按 planTransfer 结果选择逐条直下或 ZIP 分卷
+ * @param {Object} payload - { ids: string[], strategy?: 'auto'|'zip'|'direct' }
+ * @returns {Promise<{succeeded, failed, strategy, volumes, failedItems}>}
+ */
+async function handleDownloadZip(payload) {
+  await store.init();
+  if (batchInProgress || zipBuild) {
+    throw new Error(t('errorZipInProgress'));
   }
 
-  return { succeeded: result.succeeded, failed: result.failed };
+  const ids = payload?.ids || [];
+  const items = ids.map(id => store.getImageById(id)).filter(Boolean);
+  if (items.length === 0) {
+    throw new Error(t('errorNothingToDownload'));
+  }
+
+  const settings = store.getSettings();
+  const requested = payload?.strategy || 'auto';
+
+  let plan;
+  if (requested === 'direct') {
+    plan = { strategy: 'direct', volumes: [] };
+  } else if (requested === 'zip') {
+    // 显式要求打包时不做分卷，保持既有单包行为
+    plan = { strategy: 'zip', volumes: [items] };
+  } else {
+    plan = planTransfer(items, settings);
+  }
+
+  batchInProgress = true;
+  try {
+    return plan.strategy === 'direct'
+      ? await handleDirectDownload(items, settings)
+      : await handleZipDownload(items, settings, plan.volumes);
+  } finally {
+    batchInProgress = false;
+  }
 }
 
 // ─── DOM 兜底捕获（content script 扫描结果入库） ───────
@@ -374,7 +541,11 @@ async function handleDomMediaUpdate(payload) {
     if (settings.filters.domains.length > 0 && settings.filters.domains.includes(domain)) continue;
 
     const extension = getNormalizedExtension(url);
-    if (settings.filters.extensions.length > 0 && !settings.filters.extensions.includes(extension)) continue;
+    if (settings.filters.extensions.length > 0) {
+      // 与 webRequest 链路一致：过滤列表允许带前导点
+      const allowedExtensions = settings.filters.extensions.map(ext => ext.replace(/^\./, '').toLowerCase());
+      if (!allowedExtensions.includes(extension)) continue;
+    }
 
     const details = {
       width: candidate.width,
@@ -431,17 +602,17 @@ async function routeScrollCapture(type) {
   try {
     [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   } catch {
-    return { success: false, error: '未找到活动标签页' };
+    return { success: false, error: t('errorNoActiveTab') };
   }
   if (!tab?.id) {
-    return { success: false, error: '未找到活动标签页' };
+    return { success: false, error: t('errorNoActiveTab') };
   }
   try {
     await chrome.tabs.sendMessage(tab.id, { type });
     return { success: true };
   } catch {
     // 页面无 content script（chrome:// 等）
-    return { success: false, error: '当前页面不支持滚动抓取' };
+    return { success: false, error: t('errorScrollUnsupported') };
   }
 }
 
@@ -544,26 +715,16 @@ function handleRuntimeMessage(message, sender, sendResponse) {
           break;
         }
 
-        case MESSAGE_TYPES.CONTENT_IMAGES_UPDATE: {
-          await store.init();
-          const images = message.payload?.images || [];
-          const updated = images.reduce((count, image) => (
-            count + store.updateImageDetailsByUrl(image.url, {
-              width: image.width,
-              height: image.height,
-              alt: image.alt,
-              previewUrl: image.previewUrl,
-            })
-          ), 0);
+        case MESSAGE_TYPES.DOM_MEDIA_UPDATE: {
+          const result = await handleDomMediaUpdate(message.payload);
+          sendResponse({ success: true, ...result });
+          break;
+        }
 
-          if (updated > 0) {
-            chrome.runtime.sendMessage({
-              type: MESSAGE_TYPES.MEDIA_DETAILS_UPDATED,
-              payload: { images: store.getImages() },
-            }).catch(() => {});
-          }
-
-          sendResponse({ success: true, updated });
+        case MESSAGE_TYPES.SCROLL_CAPTURE_START:
+        case MESSAGE_TYPES.SCROLL_CAPTURE_STOP: {
+          const result = await routeScrollCapture(message.type);
+          sendResponse(result);
           break;
         }
 
@@ -622,16 +783,23 @@ chrome.runtime.onInstalled.addListener(async () => {
   await store.init();
 
   // 创建右键菜单
+  // 菜单标题用 __MSG_*__ 占位，由 chrome.i18n 按浏览器语言解析
   chrome.contextMenus.create({
     id: 'open-download-toggle',
-    title: 'Open Download: 开启/关闭监听',
+    title: '__MSG_menuToggleListening__',
     contexts: ['action'],
   });
 
   chrome.contextMenus.create({
     id: 'open-download-clear',
-    title: 'Open Download: 清空图片列表',
+    title: '__MSG_menuClearList__',
     contexts: ['action'],
+  });
+
+  chrome.contextMenus.create({
+    id: 'open-download-site-toggle',
+    title: '__MSG_menuSiteToggle__',
+    contexts: ['page'],
   });
 
   console.log('[OpenDownload] 扩展已安装');
@@ -657,6 +825,25 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       store.clearAll();
       break;
     }
+    case 'open-download-site-toggle': {
+      const domain = tab?.url ? extractDomain(tab.url) : '';
+      if (!domain || domain === 'unknown') break;
+
+      // 整表替换语义：存在 block 键即删除（恢复跟随全局），否则置 block
+      const siteRules = { ...(store.getSettings().siteRules || {}) };
+      if (siteRules[domain] === 'block') {
+        delete siteRules[domain];
+      } else {
+        siteRules[domain] = 'block';
+      }
+
+      const settings = await store.saveSettings({ siteRules });
+      chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.SITE_RULES_CHANGED,
+        payload: { siteRules: settings.siteRules },
+      }).catch(() => {});
+      break;
+    }
   }
 });
 
@@ -664,4 +851,8 @@ export {
   handleRuntimeMessage,
   onRequestCompleted,
   ensureOffscreenDocument,
+  isCaptureAllowed,
+  handleDomMediaUpdate,
+  routeScrollCapture,
+  planTransfer,
 };

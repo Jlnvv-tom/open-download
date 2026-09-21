@@ -16,6 +16,7 @@ import {
   sanitizeFilename,
   generateFilename,
   urlDedupeKey,
+  formatDuration,
   sleep
 } from '../src/lib/utils.js';
 
@@ -240,6 +241,27 @@ describe('utils.js', () => {
 
     test('应该处理无效 URL', () => {
       expect(urlDedupeKey('invalid')).toBe('invalid');
+    });
+  });
+
+  describe('formatDuration()', () => {
+    test('应该格式化为 mm:ss', () => {
+      expect(formatDuration(59)).toBe('00:59');
+      expect(formatDuration(61)).toBe('01:01');
+      expect(formatDuration(204.4)).toBe('03:24');
+    });
+
+    test('超过一小时应该格式化为 h:mm:ss', () => {
+      expect(formatDuration(3661)).toBe('1:01:01');
+    });
+
+    test('无效值应该返回空字符串', () => {
+      expect(formatDuration(0)).toBe('');
+      expect(formatDuration(-5)).toBe('');
+      expect(formatDuration(NaN)).toBe('');
+      expect(formatDuration(Infinity)).toBe('');
+      expect(formatDuration(null)).toBe('');
+      expect(formatDuration(undefined)).toBe('');
     });
   });
 

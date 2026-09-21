@@ -46,6 +46,32 @@ describe('DownloadManager', () => {
     });
   });
 
+  describe('下载超时与并发压制（V15-01 大文件直下）', () => {
+    test('setDownloadTimeout 应该接受合法值并对非法值回落 120s', () => {
+      expect(downloader.downloadTimeout).toBe(120000);
+
+      downloader.setDownloadTimeout(1800000);
+      expect(downloader.downloadTimeout).toBe(1800000);
+
+      downloader.setDownloadTimeout(0);
+      expect(downloader.downloadTimeout).toBe(120000);
+
+      downloader.setDownloadTimeout('abc');
+      expect(downloader.downloadTimeout).toBe(120000);
+    });
+
+    test('downloadBatch 的 maxConcurrency 只向下压制，不能超过用户设置', async () => {
+      await downloader.downloadBatch([], { maxConcurrency: 2 });
+      expect(downloader.maxConcurrency).toBe(2);
+
+      await downloader.downloadBatch([], { maxConcurrency: 9 });
+      expect(downloader.maxConcurrency).toBe(3);
+
+      await downloader.downloadBatch([]);
+      expect(downloader.maxConcurrency).toBe(3);
+    });
+  });
+
   describe('事件系统', () => {
     test('应该注册和触发事件监听器', () => {
       const callback = jest.fn();

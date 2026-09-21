@@ -27,6 +27,8 @@ async function validateDist() {
     // offscreen 文档由 background 运行时按需创建，manifest 不静态引用，这里显式校验
     'offscreen/index.html',
     'offscreen/offscreen.js',
+    // i18n：default_locale 对应目录必须存在，否则 manifest 的 __MSG_*__ 会解析失败
+    manifest.default_locale ? `_locales/${manifest.default_locale}/messages.json` : null,
     ...(manifest.content_scripts || []).flatMap(script => script.js || []),
     ...Object.values(manifest.action?.default_icon || {}),
     ...Object.values(manifest.icons || {}),

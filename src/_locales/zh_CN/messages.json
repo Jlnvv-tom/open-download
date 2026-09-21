@@ -1,0 +1,407 @@
+{
+  "extName": {
+    "message": "Open Download - 网络图片批量下载器"
+  },
+  "extDesc": {
+    "message": "监听所有网站的网络请求，自动识别并批量下载图片和视频资源"
+  },
+
+  "menuToggleListening": {
+    "message": "Open Download: 开启/关闭监听"
+  },
+  "menuClearList": {
+    "message": "Open Download: 清空图片列表"
+  },
+  "menuSiteToggle": {
+    "message": "Open Download: 暂停/恢复此站点捕获"
+  },
+
+  "statCaptured": {
+    "message": "已捕获"
+  },
+  "statDownloaded": {
+    "message": "已下载"
+  },
+  "statFailed": {
+    "message": "失败"
+  },
+  "statMatching": {
+    "message": "匹配"
+  },
+  "statSelected": {
+    "message": "已选"
+  },
+
+  "tabImage": {
+    "message": "图片"
+  },
+  "tabVideo": {
+    "message": "视频"
+  },
+  "tabAll": {
+    "message": "全部"
+  },
+
+  "searchPlaceholder": {
+    "message": "搜索 URL / 文件名 / 域名..."
+  },
+  "tooltipFilter": {
+    "message": "筛选"
+  },
+  "tooltipViewList": {
+    "message": "列表视图"
+  },
+  "tooltipViewCard": {
+    "message": "卡片视图"
+  },
+  "tooltipGroupByPage": {
+    "message": "按页面分组"
+  },
+  "tooltipUngroupByPage": {
+    "message": "取消按页面分组"
+  },
+  "tooltipScrollCapture": {
+    "message": "滚动抓取"
+  },
+  "tooltipScrollStop": {
+    "message": "停止抓取"
+  },
+  "tooltipClear": {
+    "message": "清空"
+  },
+
+  "filterSource": {
+    "message": "来源"
+  },
+  "filterSourceAll": {
+    "message": "全部"
+  },
+  "filterSourceNetwork": {
+    "message": "网络"
+  },
+  "filterSourceDom": {
+    "message": "DOM"
+  },
+  "filterMinSize": {
+    "message": "最小大小 (KB)"
+  },
+  "filterContentSize": {
+    "message": "内容大小"
+  },
+  "filterMinDimensions": {
+    "message": "最小宽高 (px)"
+  },
+  "filterWidthPlaceholder": {
+    "message": "宽"
+  },
+  "filterHeightPlaceholder": {
+    "message": "高"
+  },
+  "filterExtensions": {
+    "message": "扩展名 (逗号分隔)"
+  },
+  "filterExtensionsPlaceholder": {
+    "message": ".jpg,.png,.webp"
+  },
+
+  "emptyStateIdle": {
+    "message": "开启监听后，浏览网页时捕获的资源将显示在这里"
+  },
+  "emptyStateNoMatch": {
+    "message": "没有匹配筛选条件的$1"
+  },
+
+  "btnSelectAll": {
+    "message": "全选"
+  },
+  "btnDeselectAll": {
+    "message": "取消当前"
+  },
+  "btnExport": {
+    "message": "导出列表"
+  },
+  "btnDownloadSelected": {
+    "message": "下载选中"
+  },
+  "btnDownloadAll": {
+    "message": "全部下载"
+  },
+
+  "statusListening": {
+    "message": "监听中..."
+  },
+  "statusStopped": {
+    "message": "监听已关闭"
+  },
+
+  "tooltipClose": {
+    "message": "关闭 (Esc)"
+  },
+  "tooltipPrev": {
+    "message": "上一个 (←)"
+  },
+  "tooltipNext": {
+    "message": "下一个 (→)"
+  },
+
+  "confirmClear": {
+    "message": "确定清空所有已捕获的资源？"
+  },
+  "alertNoExport": {
+    "message": "当前筛选条件下没有可导出的资源"
+  },
+  "alertNoSelection": {
+    "message": "请先选择要下载的资源"
+  },
+  "alertNoDownloadable": {
+    "message": "当前筛选条件下没有可下载的资源"
+  },
+
+  "statusPending": {
+    "message": "待下载"
+  },
+  "statusDownloading": {
+    "message": "下载中"
+  },
+  "statusDownloaded": {
+    "message": "已下载"
+  },
+  "statusFailed": {
+    "message": "失败"
+  },
+
+  "sizeUnknown": {
+    "message": "未知"
+  },
+  "unknownError": {
+    "message": "未知错误"
+  },
+  "dimensionUnknown": {
+    "message": "未知尺寸"
+  },
+
+  "tooltipDownload": {
+    "message": "下载"
+  },
+  "tooltipCancelDownload": {
+    "message": "取消下载"
+  },
+  "tooltipRetryDownload": {
+    "message": "重试下载"
+  },
+  "tooltipRetryWithReason": {
+    "message": "失败: $1（点击重试）"
+  },
+  "tooltipRemove": {
+    "message": "移除"
+  },
+
+  "mediaImageLabel": {
+    "message": "图片"
+  },
+  "mediaVideoLabel": {
+    "message": "视频"
+  },
+
+  "groupUnknownSource": {
+    "message": "未知来源"
+  },
+  "mediaUnknownName": {
+    "message": "未知资源"
+  },
+
+  "siteCurrent": {
+    "message": "当前站点 $1"
+  },
+  "siteFollowGlobal": {
+    "message": "跟随全局"
+  },
+  "sitePaused": {
+    "message": "已暂停"
+  },
+  "sitePauseAction": {
+    "message": "暂停此站点"
+  },
+  "siteResumeAction": {
+    "message": "恢复跟随"
+  },
+
+  "progressProcessing": {
+    "message": "处理中 $1/$2"
+  },
+  "progressPacking": {
+    "message": "打包中 $1/$2"
+  },
+  "progressVolume": {
+    "message": "第 $1/$2 卷"
+  },
+
+  "downloadDone": {
+    "message": "下载完成: $1"
+  },
+  "downloadFailed": {
+    "message": "下载失败: $1"
+  },
+  "summarySucceeded": {
+    "message": "成功 $1 个"
+  },
+  "summaryFailed": {
+    "message": "失败 $1 个"
+  },
+  "summaryDirect": {
+    "message": "大文件已改为逐条下载"
+  },
+  "summaryVolumes": {
+    "message": "分 $1 卷打包"
+  },
+  "summaryFailureReasons": {
+    "message": "失败原因: $1"
+  },
+
+  "capacityNearLimit": {
+    "message": "接近捕获上限（$1），最早的记录将被自动移除"
+  },
+  "capacityTruncated": {
+    "message": "已累计移除 $1 条"
+  },
+
+  "optionsTitle": {
+    "message": "Open Download 设置"
+  },
+  "optionsDownloadSection": {
+    "message": "下载设置"
+  },
+  "optionsAutoDownload": {
+    "message": "自动下载捕获到的资源"
+  },
+  "optionsSavePath": {
+    "message": "保存目录"
+  },
+  "optionsSavePathHint": {
+    "message": "下载文件保存的子目录名（位于下载文件夹下）"
+  },
+  "optionsFileNaming": {
+    "message": "文件命名方式"
+  },
+  "optionsNamingOriginal": {
+    "message": "保留原始文件名"
+  },
+  "optionsNamingDomain": {
+    "message": "域名_文件名"
+  },
+  "optionsNamingSequential": {
+    "message": "序号 (img_0001)"
+  },
+  "optionsConcurrency": {
+    "message": "并发下载数"
+  },
+  "optionsConcurrencyHint": {
+    "message": "同时下载的文件数量 (1-10)"
+  },
+  "optionsFilterSection": {
+    "message": "过滤设置"
+  },
+  "optionsMinSize": {
+    "message": "最小文件大小 (KB)"
+  },
+  "optionsMinSizeHint": {
+    "message": "小于此大小的图片或视频将被忽略"
+  },
+  "optionsMaxSize": {
+    "message": "最大文件大小 (KB)"
+  },
+  "optionsMaxSizeHint": {
+    "message": "大于此大小的图片或视频将被忽略"
+  },
+  "optionsCaptureTypes": {
+    "message": "捕获媒体类型"
+  },
+  "optionsCaptureImage": {
+    "message": "图片"
+  },
+  "optionsCaptureVideo": {
+    "message": "视频"
+  },
+  "optionsCaptureTypesHint": {
+    "message": "不勾选任何类型时将捕获全部支持的类型"
+  },
+  "optionsExcludeDomains": {
+    "message": "排除域名 (每行一个)"
+  },
+  "optionsExcludeDomainsHint": {
+    "message": "这些域名的图片请求将被忽略"
+  },
+  "optionsExtensions": {
+    "message": "仅捕获扩展名 (逗号分隔)"
+  },
+  "optionsExtensionsHint": {
+    "message": "留空表示捕获所有支持的图片和视频类型"
+  },
+  "optionsDedupe": {
+    "message": "URL 去重"
+  },
+  "optionsDedupeHint": {
+    "message": "相同 URL 的资源只捕获一次"
+  },
+  "optionsSaveBtn": {
+    "message": "保存设置"
+  },
+  "optionsResetBtn": {
+    "message": "恢复默认"
+  },
+  "optionsSaved": {
+    "message": "设置已保存"
+  },
+  "optionsSaveFailed": {
+    "message": "保存失败: $1"
+  },
+  "optionsResetConfirm": {
+    "message": "确定恢复默认设置？"
+  },
+  "optionsResetDone": {
+    "message": "已恢复默认设置"
+  },
+  "optionsSendCookies": {
+    "message": "打包时携带 Cookie"
+  },
+  "optionsSendCookiesHint": {
+    "message": "开启后打包请求会携带该站点的 Cookie，用于抓取需要登录的资源；默认关闭"
+  },
+
+  "errorZipInProgress": {
+    "message": "已有打包任务进行中，请稍后再试"
+  },
+  "errorNothingToDownload": {
+    "message": "没有可下载的资源"
+  },
+  "errorScrollUnsupported": {
+    "message": "当前页面不支持滚动抓取"
+  },
+  "errorNoActiveTab": {
+    "message": "未找到活动标签页"
+  },
+  "errorZipTimeout": {
+    "message": "ZIP 打包超时（$1 个资源）"
+  },
+  "errorZipTimeoutVolume": {
+    "message": "ZIP 打包超时（第 $1/$2 卷，$3 个资源）"
+  },
+  "errorDownloadTimeout": {
+    "message": "下载超时"
+  },
+  "errorDownloadCancelled": {
+    "message": "下载已取消"
+  },
+  "errorDownloadInterrupted": {
+    "message": "下载中断"
+  },
+  "errorNothingToPack": {
+    "message": "没有可打包的资源"
+  },
+  "errorAllPackFailed": {
+    "message": "所有资源打包失败"
+  },
+  "errorInvalidZipParams": {
+    "message": "ZIP 打包参数无效"
+  }
+}

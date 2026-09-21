@@ -3,6 +3,7 @@
 
 import { MEDIA_TYPES } from './constants.js';
 import { generateFilename, sleep, extractDomain } from './utils.js';
+import { t } from './i18n.js';
 
 // 用户主动取消的 downloadId 集合，用于区分「取消」与「失败」
 const cancelledDownloadIds = new Set();
@@ -18,7 +19,7 @@ function waitForDownload(downloadId, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       chrome.downloads.onChanged.removeListener(listener);
-      reject(new Error('下载超时'));
+      reject(new Error(t('errorDownloadTimeout')));
     }, timeoutMs);
 
     const listener = (delta) => {
@@ -32,7 +33,9 @@ function waitForDownload(downloadId, timeoutMs = 120000) {
           clearTimeout(timeout);
           chrome.downloads.onChanged.removeListener(listener);
           const cancelled = cancelledDownloadIds.delete(downloadId);
-          const error = new Error(cancelled ? '下载已取消' : (delta.error?.current || '下载中断'));
+          const error = new Error(cancelled
+            ? t('errorDownloadCancelled')
+            : (delta.error?.current || t('errorDownloadInterrupted')));
           error.cancelled = cancelled;
           reject(error);
         }
@@ -61,6 +64,8 @@ class DownloadManager {
     // 进行中的下载 imageId → downloadId，用于取消
     this.activeDownloads = new Map();
     this.cancelRequested = false;
+    // 单条下载等待超时；大文件直下（V15-01）会临时放宽
+    this.downloadTimeout = 120000;
   }
 
   /**
@@ -69,6 +74,16 @@ class DownloadManager {
    */
   setConcurrency(n) {
     this.maxConcurrency = Math.max(1, Math.min(10, n));
+  }
+
+  /**
+   * 设置单条下载的等待超时
+   * 默认 120s 对大文件不够，直下大文件时需放宽
+   * @param {number} ms - 超时毫秒数，非法值回落 120s
+   */
+  setDownloadTimeout(ms) {
+    const parsed = Number(ms);
+    this.downloadTimeout = Number.isFinite(parsed) && parsed > 0 ? parsed : 120000;
   }
 
   /**
@@ -153,7 +168,7 @@ class DownloadManager {
    * @throws {Error} 下载超时或中断时抛出错误
    */
   _waitForDownload(downloadId) {
-    return waitForDownload(downloadId);
+    return waitForDownload(downloadId, this.downloadTimeout);
   }
 
   /**
@@ -162,9 +177,12 @@ class DownloadManager {
    * @param {Object[]} images - 图片对象数组
    * @returns {Promise<Object[]>} 下载结果数组，每项包含 { image, success, downloadId?, error? }
    */
-  async downloadBatch(images) {
+  async downloadBatch(images, { maxConcurrency } = {}) {
     const settings = this.store.getSettings();
-    this.setConcurrency(settings.concurrency);
+    // maxConcurrency 只用于向下压制（大文件直下避免抢占磁盘 IO），不能超过用户设置
+    this.setConcurrency(
+      maxConcurrency ? Math.min(maxConcurrency, settings.concurrency) : settings.concurrency
+    );
 
     const results = [];
     const batch = images.map((image, index) => ({ image, index }));

@@ -8,7 +8,8 @@ import {
   MESSAGE_TYPES,
   VIDEO_FORMAT_TABS
 } from '../lib/constants.js';
-import { formatSize, getNormalizedExtension } from '../lib/utils.js';
+import { extractDomain, formatDuration, formatSize, getNormalizedExtension } from '../lib/utils.js';
+import { applyI18n, t } from '../lib/i18n.js';
 
 // ─── DOM 引用 ──────────────────────────────────────────
 
@@ -18,6 +19,9 @@ const el = {
   toggle: $('#toggle-listening'),
   statusDot: $('#status-dot'),
   statusText: $('#status-text'),
+  siteRow: $('#site-row'),
+  siteInfo: $('#site-info'),
+  btnSiteToggle: $('#btn-site-toggle'),
   capacityHint: $('#capacity-hint'),
   statTotal: $('#stat-total'),
   statDownloaded: $('#stat-downloaded'),
@@ -30,8 +34,11 @@ const el = {
   btnFilter: $('#btn-filter'),
   btnViewList: $('#btn-view-list'),
   btnViewCard: $('#btn-view-card'),
+  btnGroup: $('#btn-group'),
+  btnScroll: $('#btn-scroll'),
   btnClear: $('#btn-clear'),
   filterPanel: $('#filter-panel'),
+  sourceFilter: $('#source-filter'),
   filterMinSize: $('#filter-min-size'),
   filterMinWidth: $('#filter-min-width'),
   filterMinHeight: $('#filter-min-height'),
@@ -60,6 +67,13 @@ let activeMediaType = MEDIA_TYPES.IMAGE;
 let activeFormat = 'all';
 let viewMode = 'list';
 let settings = null;
+let groupByPage = false;
+let sourceFilter = 'all';
+let siteRules = {};
+let currentDomain = '';
+let scrollRunning = false;
+// 折叠状态为内存态，不持久化
+const collapsedGroups = new Set();
 const DEFAULT_CONTENT_SIZE = 104;
 let contentSize = DEFAULT_CONTENT_SIZE;
 const EAGER_PREVIEW_COUNT = 36;
@@ -97,11 +111,17 @@ function makeStamp(date = new Date()) {
 // ─── 初始化 ────────────────────────────────────────────
 
 async function init() {
+  // 静态文案先本地化，避免首屏闪现默认语言
+  applyI18n(document);
+
   const settingsRes = await sendMessage(MESSAGE_TYPES.GET_SETTINGS);
   if (settingsRes.success) {
     settings = settingsRes.settings;
     activeMediaType = settings.ui?.mediaType || MEDIA_TYPES.IMAGE;
     viewMode = settings.ui?.viewMode || 'list';
+    groupByPage = Boolean(settings.ui?.groupByPage);
+    sourceFilter = settings.ui?.sourceFilter || 'all';
+    siteRules = settings.siteRules || {};
     const savedContentSize = settings.ui?.contentSize;
     contentSize = savedContentSize === undefined || savedContentSize === 132
       ? DEFAULT_CONTENT_SIZE
@@ -120,8 +140,24 @@ async function init() {
     updateCapacityHint(status);
   }
 
+  await loadCurrentSite();
   await loadMedia();
   bindEvents();
+}
+
+/**
+ * 读取当前标签页站点，用于站点级捕获开关（chrome:// 等特殊页不显示站点行）
+ */
+async function loadCurrentSite() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const url = tab?.url || '';
+    // <all_urls> host 权限下可读 tab.url；非 http(s) 页面拿不到有效站点
+    currentDomain = /^https?:/i.test(url) ? extractDomain(url) : '';
+  } catch {
+    currentDomain = '';
+  }
+  updateSiteRow();
 }
 
 // ─── 事件绑定 ──────────────────────────────────────────
@@ -182,6 +218,54 @@ function bindEvents() {
     el.filterPanel.style.display = visible ? 'none' : 'flex';
   });
 
+  el.sourceFilter.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-source]');
+    if (!button) return;
+    sourceFilter = button.dataset.source;
+    await saveUiSettings();
+    renderMedia();
+  });
+
+  el.btnGroup.addEventListener('click', async () => {
+    groupByPage = !groupByPage;
+    await saveUiSettings();
+    renderMedia();
+  });
+
+  el.btnScroll.addEventListener('click', async () => {
+    const type = scrollRunning
+      ? MESSAGE_TYPES.SCROLL_CAPTURE_STOP
+      : MESSAGE_TYPES.SCROLL_CAPTURE_START;
+    const res = await sendMessage(type);
+    if (!res.success) {
+      alert(res.error || t('errorScrollUnsupported'));
+      return;
+    }
+    if (type === MESSAGE_TYPES.SCROLL_CAPTURE_START) {
+      setScrollRunning(true);
+    }
+  });
+
+  el.btnSiteToggle.addEventListener('click', async () => {
+    if (!currentDomain) return;
+
+    // siteRules 为整表替换语义：恢复跟随 = 从表中删除该键
+    const next = { ...siteRules };
+    if (next[currentDomain] === 'block') {
+      delete next[currentDomain];
+    } else {
+      next[currentDomain] = 'block';
+    }
+
+    const res = await sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, {
+      settings: { siteRules: next },
+    });
+    if (res.success) {
+      siteRules = res.settings?.siteRules || next;
+      updateSiteRow();
+    }
+  });
+
   el.contentSizeRange.addEventListener('input', () => updateContentSize(el.contentSizeRange.value, false));
   el.contentSizeRange.addEventListener('change', () => saveUiSettings());
   el.contentSizeInput.addEventListener('input', () => updateContentSize(el.contentSizeInput.value, false));
@@ -191,10 +275,11 @@ function bindEvents() {
   });
 
   el.btnClear.addEventListener('click', async () => {
-    if (!confirm('确定清空所有已捕获的资源？')) return;
+    if (!confirm(t('confirmClear'))) return;
     await sendMessage(MESSAGE_TYPES.CLEAR_IMAGES);
     allMedia = [];
     selectedIds.clear();
+    collapsedGroups.clear();
     closeLightbox();
     renderMedia();
     updateStats({ total: 0, downloaded: 0, failed: 0 });
@@ -216,7 +301,7 @@ function bindEvents() {
   el.btnExport.addEventListener('click', () => {
     const filtered = getFilteredMedia();
     if (filtered.length === 0) {
-      alert('当前筛选条件下没有可导出的资源');
+      alert(t('alertNoExport'));
       return;
     }
     const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
@@ -231,23 +316,30 @@ function bindEvents() {
   el.btnDownloadSelected.addEventListener('click', async () => {
     const selected = allMedia.filter(media => selectedIds.has(media.id));
     if (selected.length === 0) {
-      alert('请先选择要下载的资源');
+      alert(t('alertNoSelection'));
       return;
     }
-    await downloadMediaAsZip(selected, el.btnDownloadSelected, '下载选中');
+    await downloadMediaAsZip(selected, el.btnDownloadSelected, t('btnDownloadSelected'));
   });
 
   el.btnDownloadAll.addEventListener('click', async () => {
     const filtered = getFilteredMedia();
     if (filtered.length === 0) {
-      alert('当前筛选条件下没有可下载的资源');
+      alert(t('alertNoDownloadable'));
       return;
     }
-    await downloadMediaAsZip(filtered, el.btnDownloadAll, '全部下载');
+    await downloadMediaAsZip(filtered, el.btnDownloadAll, t('btnDownloadAll'));
   });
 
   // 列表容器事件委托：渲染替换 innerHTML 后监听依然有效
   el.imageList.addEventListener('click', (event) => {
+    // 分组头：切换组内容折叠（组头不是条目的祖先，先于 data-id 判定）
+    const groupHeader = event.target.closest('[data-group]');
+    if (groupHeader) {
+      toggleGroupCollapse(groupHeader);
+      return;
+    }
+
     const actionEl = event.target.closest('[data-action]');
     const item = event.target.closest('[data-id]');
     if (!actionEl) {
@@ -300,7 +392,10 @@ function bindEvents() {
     }
     if (message.type === MESSAGE_TYPES.ZIP_PROGRESS) {
       if (activeZipButton) {
-        activeZipButton.textContent = `打包中 ${message.payload?.done || 0}/${message.payload?.total || 0}`;
+        const { done = 0, total = 0, volume, volumes } = message.payload || {};
+        zipProgressSeen = true;
+        const volumePrefix = volumes > 1 ? `${t('progressVolume', volume, volumes)} ` : '';
+        activeZipButton.textContent = `${volumePrefix}${t('progressPacking', done, total)}`;
       }
     }
     if (message.type === MESSAGE_TYPES.DOWNLOAD_STATUS_CHANGED) {
@@ -309,6 +404,19 @@ function bindEvents() {
       if (['downloaded', 'failed', 'pending'].includes(status)) {
         refreshStats();
       }
+      // 逐条直下没有 ZIP 进度事件，用状态流转驱动按钮计数
+      if (activeZipButton && !zipProgressSeen && ['downloaded', 'failed'].includes(status)) {
+        activeZipCompleted = Math.min(activeZipCompleted + 1, activeZipTotal);
+        activeZipButton.textContent = t('progressProcessing', activeZipCompleted, activeZipTotal);
+      }
+    }
+    if (message.type === MESSAGE_TYPES.SITE_RULES_CHANGED) {
+      // 右键菜单触发的站点规则变更，同步站点行
+      siteRules = message.payload?.siteRules || {};
+      updateSiteRow();
+    }
+    if (message.type === MESSAGE_TYPES.SCROLL_CAPTURE_STATE) {
+      setScrollRunning(Boolean(message.payload?.running));
     }
   });
 }
@@ -350,6 +458,8 @@ function saveUiSettings() {
         mediaType: activeMediaType,
         viewMode,
         contentSize,
+        groupByPage,
+        sourceFilter,
       },
     },
   });
@@ -399,6 +509,8 @@ function getFilteredMedia() {
 
   return allMedia.filter(media => {
     if (media.mediaType !== activeMediaType) return false;
+    // 来源筛选：老数据无 source 字段，归一为网络捕获
+    if (sourceFilter !== 'all' && (media.source || 'network') !== sourceFilter) return false;
     if (activeFormat !== 'all' && media.extension !== activeFormat) return false;
     if (manualExtensions.length > 0 && !manualExtensions.includes(media.extension)) return false;
     if (minSize > 0 && media.size < minSize * 1024) return false;
@@ -445,11 +557,17 @@ async function removeMedia(id) {
 // ─── ZIP 下载（打包在 background 的 offscreen document 中进行） ──
 
 let activeZipButton = null;
+let activeZipTotal = 0;
+let activeZipCompleted = 0;
+let zipProgressSeen = false;
 
 async function downloadMediaAsZip(mediaItems, button, defaultText) {
   button.disabled = true;
   activeZipButton = button;
-  button.textContent = `打包中 0/${mediaItems.length}`;
+  activeZipTotal = mediaItems.length;
+  activeZipCompleted = 0;
+  zipProgressSeen = false;
+  button.textContent = t('progressProcessing', 0, activeZipTotal);
 
   try {
     const result = await sendMessage(MESSAGE_TYPES.DOWNLOAD_ZIP, {
@@ -457,18 +575,47 @@ async function downloadMediaAsZip(mediaItems, button, defaultText) {
     });
 
     if (result.success) {
-      alert(`ZIP 已下载: 成功 ${result.succeeded} 个, 失败 ${result.failed} 个`);
+      alert(formatDownloadSummary(result));
       await loadMedia();
     } else {
-      alert(`打包失败: ${result.error || '未知错误'}`);
+      alert(t('downloadFailed', result.error || t('unknownError')));
     }
   } catch (error) {
-    alert(`打包失败: ${error.message}`);
+    alert(t('downloadFailed', error.message));
   } finally {
     activeZipButton = null;
     button.disabled = false;
     button.textContent = defaultText;
   }
+}
+
+/**
+ * 汇总批量下载结果：传输策略、分卷数与失败原因（V15-01）
+ */
+function formatDownloadSummary(result) {
+  const parts = [
+    t('summarySucceeded', result.succeeded),
+    t('summaryFailed', result.failed),
+  ];
+
+  if (result.strategy === 'direct') {
+    parts.push(t('summaryDirect'));
+  } else if (result.volumes?.length > 1) {
+    parts.push(t('summaryVolumes', result.volumes.length));
+  }
+
+  let message = t('downloadDone', parts.join('，'));
+
+  const reasons = (result.failedItems || [])
+    .map(item => item.error)
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (reasons.length > 0) {
+    message += `\n${t('summaryFailureReasons', reasons.join('；'))}`;
+  }
+
+  return message;
 }
 
 // ─── 渲染 ──────────────────────────────────────────────
@@ -479,6 +626,8 @@ function renderMedia() {
   renderMediaTabs();
   renderFormatTabs();
   updateViewButtons();
+  updateGroupButton();
+  updateSourceFilterUI();
   updateSelectionButton(filtered);
   updateStats({
     total: allMedia.length,
@@ -495,6 +644,8 @@ function renderMedia() {
 
   if (viewMode === 'card') {
     renderCardView(filtered);
+  } else if (groupByPage) {
+    renderGroupedListView(filtered);
   } else {
     renderListView(filtered);
   }
@@ -505,7 +656,7 @@ function renderMediaTabs() {
   el.mediaTabs.querySelectorAll('[data-media-type]').forEach(button => {
     const mediaType = button.dataset.mediaType;
     button.classList.toggle('active', mediaType === activeMediaType);
-    button.querySelector('span').textContent = counts[mediaType] || 0;
+    button.querySelector('.tab-count').textContent = counts[mediaType] || 0;
   });
 }
 
@@ -521,9 +672,9 @@ function renderFormatTabs() {
   }
 
   el.formatTabs.innerHTML = tabs.map(format => {
-    const label = format === 'all' ? '全部' : format;
+    const label = format === 'all' ? t('tabAll') : format;
     const count = format === 'all' ? total : (counts[format] || 0);
-    return `<button class="tab ${format === activeFormat ? 'active' : ''}" data-format="${format}">${label}<span>${count}</span></button>`;
+    return `<button class="tab ${format === activeFormat ? 'active' : ''}" data-format="${format}">${escapeHtml(label)}<span class="tab-count">${count}</span></button>`;
   }).join('');
 }
 
@@ -539,11 +690,71 @@ function renderCardView(mediaItems) {
     .join('');
 }
 
+/**
+ * 列表视图按来源页面分组渲染
+ * 组间按组内最新 capturedAt 倒序，组内沿用「最新在前」
+ */
+function renderGroupedListView(mediaItems) {
+  const groups = new Map();
+
+  [...mediaItems].reverse().forEach(media => {
+    const key = media.tabUrl || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(media);
+  });
+
+  const ordered = [...groups.entries()]
+    .sort((a, b) => latestCapturedAt(b[1]) - latestCapturedAt(a[1]));
+
+  el.imageList.innerHTML = ordered.map(([key, items]) => {
+    const collapsed = collapsedGroups.has(key);
+    return `
+      <div class="list-group">
+        <div class="list-group-header" data-group="${escapeAttr(key)}">
+          <span class="group-arrow">${collapsed ? '▸' : '▾'}</span>
+          <span class="group-title">${escapeHtml(groupTitleOf(items))}</span>
+          <span class="group-count">${items.length}</span>
+        </div>
+        <div class="list-group-body"${collapsed ? ' hidden' : ''}>
+          ${items.map((media, index) => listItemTemplate(media, index)).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function latestCapturedAt(items) {
+  return items.reduce((max, media) => Math.max(max, media.capturedAt || 0), 0);
+}
+
+function groupTitleOf(items) {
+  const first = items[0] || {};
+  if (first.tabTitle) return first.tabTitle;
+  return first.tabUrl ? extractDomain(first.tabUrl) : t('groupUnknownSource');
+}
+
+function toggleGroupCollapse(groupHeader) {
+  const key = groupHeader.dataset.group || '';
+  const collapsed = !collapsedGroups.has(key);
+
+  if (collapsed) {
+    collapsedGroups.add(key);
+  } else {
+    collapsedGroups.delete(key);
+  }
+
+  const body = groupHeader.nextElementSibling;
+  if (body) body.hidden = collapsed;
+  const arrow = groupHeader.querySelector('.group-arrow');
+  if (arrow) arrow.textContent = collapsed ? '▸' : '▾';
+}
+
 // ─── 条目模板（全量渲染与增量插入共用） ────────────────
 
 function listItemTemplate(media, index = 0) {
   const isSelected = selectedIds.has(media.id);
   const statusClass = media.status || 'pending';
+  const duration = media.mediaType === MEDIA_TYPES.VIDEO ? formatDuration(media.duration) : '';
 
   return `
     <div class="image-item ${isSelected ? 'selected' : ''}" data-id="${media.id}">
@@ -554,12 +765,13 @@ function listItemTemplate(media, index = 0) {
         <div class="image-meta">
           <span>${escapeHtml(media.domain)}</span>
           <span>${formatSize(media.size)}</span>
+          ${duration ? `<span>${duration}</span>` : ''}
           <span>${escapeHtml(media.mimeType || media.extension || '')}</span>
         </div>
       </div>
       <span class="image-status ${statusClass}">${getStatusText(statusClass)}</span>
       <span class="item-action">${actionButtonHtml(media)}</span>
-      <button class="image-remove" data-action="remove" title="移除">
+      <button class="image-remove" data-action="remove" title="${escapeAttr(t('tooltipRemove'))}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -587,7 +799,7 @@ function actionButtonHtml(media) {
 
   if (status === 'downloading') {
     return `
-      <button class="image-cancel" data-action="cancel" title="取消下载">
+      <button class="image-cancel" data-action="cancel" title="${escapeAttr(t('tooltipCancelDownload'))}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="6" y="6" width="12" height="12" rx="1"/>
         </svg>
@@ -595,9 +807,11 @@ function actionButtonHtml(media) {
     `;
   }
   if (status === 'failed') {
-    const tip = media.errorMsg ? `失败: ${media.errorMsg}（点击重试）` : '重试下载';
+    const tip = media.errorMsg
+      ? t('tooltipRetryWithReason', media.errorMsg)
+      : t('tooltipRetryDownload');
     return `
-      <button class="image-retry" data-action="download" title="${escapeHtml(tip)}">
+      <button class="image-retry" data-action="download" title="${escapeAttr(tip)}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -607,7 +821,7 @@ function actionButtonHtml(media) {
   }
   if (status === 'pending') {
     return `
-      <button class="image-download" data-action="download" title="下载">
+      <button class="image-download" data-action="download" title="${escapeAttr(t('tooltipDownload'))}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="7 10 12 15 17 10"/>
@@ -650,10 +864,12 @@ function renderCardPreview(media, index = 0) {
   const loading = getPreviewLoadingAttrs(index);
 
   if (media.mediaType === MEDIA_TYPES.VIDEO) {
+    const duration = formatDuration(media.duration);
     return `
       <div class="media-card-preview" data-action="open">
         <video src="${escapeHtml(previewUrl)}" muted preload="${index < EAGER_PREVIEW_COUNT ? 'metadata' : 'none'}"></video>
-        <div class="media-card-placeholder" style="display:none;">视频 ${escapeHtml(media.extension || '')}</div>
+        ${duration ? `<span class="duration-badge">${duration}</span>` : ''}
+        <div class="media-card-placeholder" style="display:none;">${escapeHtml(`${t('mediaVideoLabel')} ${media.extension || ''}`)}</div>
       </div>
     `;
   }
@@ -661,7 +877,7 @@ function renderCardPreview(media, index = 0) {
   return `
     <div class="media-card-preview" data-action="open">
       <img src="${escapeHtml(previewUrl)}" alt="" ${loading} decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <div class="media-card-placeholder" style="display:none;">图片 ${escapeHtml(media.extension || '')}</div>
+      <div class="media-card-placeholder" style="display:none;">${escapeHtml(`${t('mediaImageLabel')} ${media.extension || ''}`)}</div>
     </div>
   `;
 }
@@ -673,7 +889,7 @@ function renderCardInfo(media) {
 
   return `
     <div class="media-card-info">
-      <div class="media-card-name">${escapeHtml(media.filename || media.url || '未知资源')}</div>
+      <div class="media-card-name">${escapeHtml(media.filename || media.url || t('mediaUnknownName'))}</div>
       <div class="media-card-meta">
         <span>${escapeHtml(dimensions)}</span>
         <span>${escapeHtml(size)}</span>
@@ -687,7 +903,7 @@ function getDimensionsText(media) {
   if (media.width > 0 && media.height > 0) {
     return `${media.width}x${media.height}`;
   }
-  return '未知尺寸';
+  return t('dimensionUnknown');
 }
 
 function getPreviewUrl(media) {
@@ -701,7 +917,9 @@ function getPreviewLoadingAttrs(index) {
 }
 
 function renderEmptyState() {
-  const label = activeMediaType === MEDIA_TYPES.VIDEO ? '视频' : '图片';
+  const label = activeMediaType === MEDIA_TYPES.VIDEO ? t('mediaVideoLabel') : t('mediaImageLabel');
+  const message = allMedia.length === 0 ? t('emptyStateIdle') : t('emptyStateNoMatch', label);
+
   el.imageList.innerHTML = `
     <div class="empty-state">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -709,7 +927,7 @@ function renderEmptyState() {
         <circle cx="8.5" cy="8.5" r="1.5"/>
         <polyline points="21 15 16 10 5 21"/>
       </svg>
-      <p>${allMedia.length === 0 ? '开启监听后，浏览网页时捕获的资源将显示在这里' : `没有匹配筛选条件的${label}`}</p>
+      <p>${escapeHtml(message)}</p>
     </div>
   `;
 }
@@ -724,6 +942,12 @@ function handleMediaFound(media) {
   if (lightboxOpen) {
     // 预览打开期间只更新数据，关闭时统一校准
     updateStats({ total: allMedia.length });
+    return;
+  }
+
+  // 分组模式下组序需重排，放弃增量插入直接全量重渲
+  if (groupByPage && viewMode === 'list') {
+    renderMedia();
     return;
   }
 
@@ -833,12 +1057,45 @@ function updateViewButtons() {
 
 function updateSelectionButton(filtered) {
   const allCurrentSelected = filtered.length > 0 && filtered.every(media => selectedIds.has(media.id));
-  el.btnSelectAll.textContent = allCurrentSelected ? '取消当前' : '全选';
+  el.btnSelectAll.textContent = allCurrentSelected ? t('btnDeselectAll') : t('btnSelectAll');
 }
 
 function updateStatusUI(enabled) {
   el.statusDot.classList.toggle('active', enabled);
-  el.statusText.textContent = enabled ? '监听中...' : '监听已关闭';
+  el.statusText.textContent = enabled ? t('statusListening') : t('statusStopped');
+  // 滚动抓取依赖监听通路，未开启监听时不可用
+  el.btnScroll.disabled = !enabled;
+}
+
+function updateSiteRow() {
+  if (!currentDomain) {
+    el.siteRow.hidden = true;
+    return;
+  }
+
+  const blocked = siteRules?.[currentDomain] === 'block';
+  el.siteRow.hidden = false;
+  el.siteInfo.textContent = blocked
+    ? `${t('siteCurrent', currentDomain)} · ${t('sitePaused')}`
+    : `${t('siteCurrent', currentDomain)} · ${t('siteFollowGlobal')}`;
+  el.btnSiteToggle.textContent = blocked ? t('siteResumeAction') : t('sitePauseAction');
+}
+
+function setScrollRunning(running) {
+  scrollRunning = running;
+  el.btnScroll.classList.toggle('active', running);
+  el.btnScroll.title = running ? t('tooltipScrollStop') : t('tooltipScrollCapture');
+}
+
+function updateGroupButton() {
+  el.btnGroup.classList.toggle('active', groupByPage);
+  el.btnGroup.title = groupByPage ? t('tooltipUngroupByPage') : t('tooltipGroupByPage');
+}
+
+function updateSourceFilterUI() {
+  el.sourceFilter.querySelectorAll('[data-source]').forEach(button => {
+    button.classList.toggle('active', button.dataset.source === sourceFilter);
+  });
 }
 
 function updateStats(stats) {
@@ -861,10 +1118,10 @@ function updateCapacityHint(statusInfo) {
 
   const parts = [];
   if (count >= CAPACITY_WARNING_THRESHOLD) {
-    parts.push(`接近捕获上限（${MAX_CAPTURED_IMAGES}），最早的记录将被自动移除`);
+    parts.push(t('capacityNearLimit', MAX_CAPTURED_IMAGES));
   }
   if (truncated > 0) {
-    parts.push(`已累计移除 ${truncated} 条`);
+    parts.push(t('capacityTruncated', truncated));
   }
   el.capacityHint.textContent = parts.join('；');
   el.capacityHint.hidden = false;
@@ -872,11 +1129,11 @@ function updateCapacityHint(statusInfo) {
 
 function getStatusText(status) {
   return {
-    pending: '待下载',
-    downloading: '下载中',
-    downloaded: '已下载',
-    failed: '失败',
-  }[status] || '待下载';
+    pending: t('statusPending'),
+    downloading: t('statusDownloading'),
+    downloaded: t('statusDownloaded'),
+    failed: t('statusFailed'),
+  }[status] || t('statusPending');
 }
 
 function countBy(items, key) {
@@ -892,6 +1149,16 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
+}
+
+// 用于 HTML 属性值（escapeHtml 不处理引号，URL 可能含单双引号）
+function escapeAttr(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ─── 启动 ──────────────────────────────────────────────

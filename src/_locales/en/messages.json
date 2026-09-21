@@ -1,0 +1,407 @@
+{
+  "extName": {
+    "message": "Open Download - Network Image Batch Downloader"
+  },
+  "extDesc": {
+    "message": "Observe network requests on all sites and batch download the images and videos they load"
+  },
+
+  "menuToggleListening": {
+    "message": "Open Download: Turn listening on/off"
+  },
+  "menuClearList": {
+    "message": "Open Download: Clear captured list"
+  },
+  "menuSiteToggle": {
+    "message": "Open Download: Pause/resume capture for this site"
+  },
+
+  "statCaptured": {
+    "message": "Captured"
+  },
+  "statDownloaded": {
+    "message": "Downloaded"
+  },
+  "statFailed": {
+    "message": "Failed"
+  },
+  "statMatching": {
+    "message": "Matching"
+  },
+  "statSelected": {
+    "message": "Selected"
+  },
+
+  "tabImage": {
+    "message": "Images"
+  },
+  "tabVideo": {
+    "message": "Videos"
+  },
+  "tabAll": {
+    "message": "All"
+  },
+
+  "searchPlaceholder": {
+    "message": "Search URL / filename / domain..."
+  },
+  "tooltipFilter": {
+    "message": "Filters"
+  },
+  "tooltipViewList": {
+    "message": "List view"
+  },
+  "tooltipViewCard": {
+    "message": "Card view"
+  },
+  "tooltipGroupByPage": {
+    "message": "Group by page"
+  },
+  "tooltipUngroupByPage": {
+    "message": "Ungroup"
+  },
+  "tooltipScrollCapture": {
+    "message": "Auto-scroll capture"
+  },
+  "tooltipScrollStop": {
+    "message": "Stop capture"
+  },
+  "tooltipClear": {
+    "message": "Clear"
+  },
+
+  "filterSource": {
+    "message": "Source"
+  },
+  "filterSourceAll": {
+    "message": "All"
+  },
+  "filterSourceNetwork": {
+    "message": "Network"
+  },
+  "filterSourceDom": {
+    "message": "DOM"
+  },
+  "filterMinSize": {
+    "message": "Min size (KB)"
+  },
+  "filterContentSize": {
+    "message": "Preview size"
+  },
+  "filterMinDimensions": {
+    "message": "Min dimensions (px)"
+  },
+  "filterWidthPlaceholder": {
+    "message": "Width"
+  },
+  "filterHeightPlaceholder": {
+    "message": "Height"
+  },
+  "filterExtensions": {
+    "message": "Extensions (comma separated)"
+  },
+  "filterExtensionsPlaceholder": {
+    "message": ".jpg,.png,.webp"
+  },
+
+  "emptyStateIdle": {
+    "message": "Captured media will show up here once listening is on"
+  },
+  "emptyStateNoMatch": {
+    "message": "No $1 matching the current filters"
+  },
+
+  "btnSelectAll": {
+    "message": "Select all"
+  },
+  "btnDeselectAll": {
+    "message": "Deselect"
+  },
+  "btnExport": {
+    "message": "Export list"
+  },
+  "btnDownloadSelected": {
+    "message": "Download selected"
+  },
+  "btnDownloadAll": {
+    "message": "Download all"
+  },
+
+  "statusListening": {
+    "message": "Listening..."
+  },
+  "statusStopped": {
+    "message": "Listening off"
+  },
+
+  "tooltipClose": {
+    "message": "Close (Esc)"
+  },
+  "tooltipPrev": {
+    "message": "Previous (←)"
+  },
+  "tooltipNext": {
+    "message": "Next (→)"
+  },
+
+  "confirmClear": {
+    "message": "Clear all captured media?"
+  },
+  "alertNoExport": {
+    "message": "No media matches the current filters"
+  },
+  "alertNoSelection": {
+    "message": "Select media to download first"
+  },
+  "alertNoDownloadable": {
+    "message": "No downloadable media matches the current filters"
+  },
+
+  "statusPending": {
+    "message": "Pending"
+  },
+  "statusDownloading": {
+    "message": "Downloading"
+  },
+  "statusDownloaded": {
+    "message": "Downloaded"
+  },
+  "statusFailed": {
+    "message": "Failed"
+  },
+
+  "sizeUnknown": {
+    "message": "Unknown"
+  },
+  "unknownError": {
+    "message": "Unknown error"
+  },
+  "dimensionUnknown": {
+    "message": "Unknown size"
+  },
+
+  "tooltipDownload": {
+    "message": "Download"
+  },
+  "tooltipCancelDownload": {
+    "message": "Cancel download"
+  },
+  "tooltipRetryDownload": {
+    "message": "Retry download"
+  },
+  "tooltipRetryWithReason": {
+    "message": "Failed: $1 (click to retry)"
+  },
+  "tooltipRemove": {
+    "message": "Remove"
+  },
+
+  "mediaImageLabel": {
+    "message": "image"
+  },
+  "mediaVideoLabel": {
+    "message": "video"
+  },
+
+  "groupUnknownSource": {
+    "message": "Unknown source"
+  },
+  "mediaUnknownName": {
+    "message": "Unknown media"
+  },
+
+  "siteCurrent": {
+    "message": "Current site $1"
+  },
+  "siteFollowGlobal": {
+    "message": "following global"
+  },
+  "sitePaused": {
+    "message": "paused"
+  },
+  "sitePauseAction": {
+    "message": "Pause this site"
+  },
+  "siteResumeAction": {
+    "message": "Resume"
+  },
+
+  "progressProcessing": {
+    "message": "Processing $1/$2"
+  },
+  "progressPacking": {
+    "message": "Packing $1/$2"
+  },
+  "progressVolume": {
+    "message": "volume $1/$2"
+  },
+
+  "downloadDone": {
+    "message": "Done: $1"
+  },
+  "downloadFailed": {
+    "message": "Download failed: $1"
+  },
+  "summarySucceeded": {
+    "message": "$1 succeeded"
+  },
+  "summaryFailed": {
+    "message": "$1 failed"
+  },
+  "summaryDirect": {
+    "message": "large files were downloaded individually"
+  },
+  "summaryVolumes": {
+    "message": "packed into $1 volumes"
+  },
+  "summaryFailureReasons": {
+    "message": "Failure reasons: $1"
+  },
+
+  "capacityNearLimit": {
+    "message": "Approaching the $1 item limit; the oldest entries will be dropped"
+  },
+  "capacityTruncated": {
+    "message": "$1 entries dropped so far"
+  },
+
+  "optionsTitle": {
+    "message": "Open Download Settings"
+  },
+  "optionsDownloadSection": {
+    "message": "Downloads"
+  },
+  "optionsAutoDownload": {
+    "message": "Automatically download captured media"
+  },
+  "optionsSavePath": {
+    "message": "Save folder"
+  },
+  "optionsSavePathHint": {
+    "message": "Subfolder inside your Downloads folder"
+  },
+  "optionsFileNaming": {
+    "message": "File naming"
+  },
+  "optionsNamingOriginal": {
+    "message": "Keep original filename"
+  },
+  "optionsNamingDomain": {
+    "message": "domain_filename"
+  },
+  "optionsNamingSequential": {
+    "message": "Sequence (img_0001)"
+  },
+  "optionsConcurrency": {
+    "message": "Concurrent downloads"
+  },
+  "optionsConcurrencyHint": {
+    "message": "Number of simultaneous downloads (1-10)"
+  },
+  "optionsFilterSection": {
+    "message": "Filters"
+  },
+  "optionsMinSize": {
+    "message": "Minimum file size (KB)"
+  },
+  "optionsMinSizeHint": {
+    "message": "Media smaller than this will be ignored"
+  },
+  "optionsMaxSize": {
+    "message": "Maximum file size (KB)"
+  },
+  "optionsMaxSizeHint": {
+    "message": "Media larger than this will be ignored"
+  },
+  "optionsCaptureTypes": {
+    "message": "Media types to capture"
+  },
+  "optionsCaptureImage": {
+    "message": "Images"
+  },
+  "optionsCaptureVideo": {
+    "message": "Videos"
+  },
+  "optionsCaptureTypesHint": {
+    "message": "With nothing checked, all supported types are captured"
+  },
+  "optionsExcludeDomains": {
+    "message": "Excluded domains (one per line)"
+  },
+  "optionsExcludeDomainsHint": {
+    "message": "Requests from these domains will be ignored"
+  },
+  "optionsExtensions": {
+    "message": "Only capture these extensions (comma separated)"
+  },
+  "optionsExtensionsHint": {
+    "message": "Leave empty to capture all supported images and videos"
+  },
+  "optionsDedupe": {
+    "message": "URL deduplication"
+  },
+  "optionsDedupeHint": {
+    "message": "Capture each URL only once"
+  },
+  "optionsSaveBtn": {
+    "message": "Save settings"
+  },
+  "optionsResetBtn": {
+    "message": "Restore defaults"
+  },
+  "optionsSaved": {
+    "message": "Settings saved"
+  },
+  "optionsSaveFailed": {
+    "message": "Save failed: $1"
+  },
+  "optionsResetConfirm": {
+    "message": "Restore default settings?"
+  },
+  "optionsResetDone": {
+    "message": "Defaults restored"
+  },
+  "optionsSendCookies": {
+    "message": "Send cookies when packing"
+  },
+  "optionsSendCookiesHint": {
+    "message": "When enabled, packing requests include the site's cookies, which helps with login-protected media; off by default"
+  },
+
+  "errorZipInProgress": {
+    "message": "A packing task is already running, please try again later"
+  },
+  "errorNothingToDownload": {
+    "message": "Nothing to download"
+  },
+  "errorScrollUnsupported": {
+    "message": "Auto-scroll capture is not supported on this page"
+  },
+  "errorNoActiveTab": {
+    "message": "No active tab found"
+  },
+  "errorZipTimeout": {
+    "message": "ZIP packing timed out ($1 items)"
+  },
+  "errorZipTimeoutVolume": {
+    "message": "ZIP packing timed out (volume $1/$2, $3 items)"
+  },
+  "errorDownloadTimeout": {
+    "message": "Download timed out"
+  },
+  "errorDownloadCancelled": {
+    "message": "Download cancelled"
+  },
+  "errorDownloadInterrupted": {
+    "message": "Download interrupted"
+  },
+  "errorNothingToPack": {
+    "message": "Nothing to pack"
+  },
+  "errorAllPackFailed": {
+    "message": "All items failed to pack"
+  },
+  "errorInvalidZipParams": {
+    "message": "Invalid ZIP packing parameters"
+  }
+}

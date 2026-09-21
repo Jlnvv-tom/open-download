@@ -1,7 +1,7 @@
 # v1.4 捕获增强开发计划
 
 - 日期：2026-09-20
-- 状态：待开发
+- 状态：已实现（2026-09-21 完成，含修复 `CONTENT_IMAGES_UPDATE` 被删除后 content script 仍在上报的回归）
 - 上游计划：[RoadMap.md](../../../RoadMap.md)（v1.4 章节，任务编号 V14-xx 与本文档一致）
 - 前置：v1.3 体验补课已实现（popup 容器事件委托、增量渲染、`DOWNLOAD_STATUS_CHANGED` 广播、状态局部更新等基础可直接复用）
 - 分析依据：[竞品对比分析与迭代路线图](../../analysis/competitive-analysis-roadmap/2026-09-19-competitive-analysis-and-roadmap.md)

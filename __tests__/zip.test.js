@@ -35,6 +35,18 @@ describe('zip.js', () => {
     expect(makeZipFilename(new Date('2026-07-25T08:09:10'))).toBe('open-download-20260725-080910.zip');
   });
 
+  test('单卷时不应该带分卷后缀（向后兼容）', () => {
+    const date = new Date('2026-07-25T08:09:10');
+    expect(makeZipFilename(date, { volume: 1, volumes: 1 })).toBe('open-download-20260725-080910.zip');
+    expect(makeZipFilename(date, {})).toBe('open-download-20260725-080910.zip');
+  });
+
+  test('多卷时应该追加 partN 后缀', () => {
+    const date = new Date('2026-07-25T08:09:10');
+    expect(makeZipFilename(date, { volume: 1, volumes: 3 })).toBe('open-download-20260725-080910_part1.zip');
+    expect(makeZipFilename(date, { volume: 3, volumes: 3 })).toBe('open-download-20260725-080910_part3.zip');
+  });
+
   test('应该创建包含成功条目的 ZIP Blob', async () => {
     const fetchFn = jest.fn(async () => makeResponse('image-data'));
     const result = await createMediaZip([
@@ -80,6 +92,37 @@ describe('zip.js', () => {
 
     expect(result.succeeded).toBe(2);
     expect(result.entries.map(entry => entry.name).sort()).toEqual(['img_0000.png', 'video_0001.mp4']);
+  });
+
+  test('默认不携带 Cookie，开启 sendCookies 后应该带上凭据', async () => {
+    const fetchSpy = jest.fn(async () => makeResponse('image-data'));
+    const realFetch = global.fetch;
+    global.fetch = fetchSpy;
+
+    const items = [
+      { id: '1', url: 'https://example.com/a.jpg', filename: 'a.jpg', domain: 'example.com' }
+    ];
+
+    await createMediaZip(items, {});
+    expect(fetchSpy.mock.calls[0][1]).toBeUndefined();
+
+    fetchSpy.mockClear();
+    await createMediaZip(items, { sendCookies: true });
+    expect(fetchSpy.mock.calls[0][0]).toBe('https://example.com/a.jpg');
+    expect(fetchSpy.mock.calls[0][1]).toEqual({ credentials: 'include' });
+
+    global.fetch = realFetch;
+  });
+
+  test('注入 fetchFn 时应该优先使用注入实现', async () => {
+    const fetchFn = jest.fn(async () => makeResponse('image-data'));
+
+    await createMediaZip([
+      { id: '1', url: 'https://example.com/a.jpg', filename: 'a.jpg', domain: 'example.com' }
+    ], { fetchFn, sendCookies: true });
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fetchFn.mock.calls[0]).toHaveLength(1);
   });
 
   test('打包过程应该通过 onProgress 汇报进度', async () => {

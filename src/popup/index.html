@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
+  <!-- 静态文案统一由 data-i18n* 属性驱动，运行时由 applyI18n() 填充 -->
   <div class="app">
     <!-- Header -->
     <header class="header">
@@ -33,29 +34,33 @@
     <div class="stats-bar">
       <div class="stat">
         <span class="stat-value" id="stat-total">0</span>
-        <span class="stat-label">已捕获</span>
+        <span class="stat-label" data-i18n="statCaptured"></span>
       </div>
       <div class="stat">
         <span class="stat-value" id="stat-downloaded">0</span>
-        <span class="stat-label">已下载</span>
+        <span class="stat-label" data-i18n="statDownloaded"></span>
       </div>
       <div class="stat">
         <span class="stat-value" id="stat-failed">0</span>
-        <span class="stat-label">失败</span>
+        <span class="stat-label" data-i18n="statFailed"></span>
       </div>
       <div class="stat">
         <span class="stat-value" id="stat-matching">0</span>
-        <span class="stat-label">匹配</span>
+        <span class="stat-label" data-i18n="statMatching"></span>
       </div>
       <div class="stat">
         <span class="stat-value" id="stat-selected">0</span>
-        <span class="stat-label">已选</span>
+        <span class="stat-label" data-i18n="statSelected"></span>
       </div>
     </div>
 
     <div class="media-tabs" id="media-tabs">
-      <button class="tab active" data-media-type="image">图片 <span>0</span></button>
-      <button class="tab" data-media-type="video">视频 <span>0</span></button>
+      <button class="tab active" data-media-type="image">
+        <span data-i18n="tabImage"></span> <span class="tab-count">0</span>
+      </button>
+      <button class="tab" data-media-type="video">
+        <span data-i18n="tabVideo"></span> <span class="tab-count">0</span>
+      </button>
     </div>
 
     <div class="format-tabs" id="format-tabs"></div>
@@ -67,14 +72,14 @@
           <circle cx="11" cy="11" r="8"/>
           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input type="text" id="search-input" placeholder="搜索 URL / 文件名 / 域名...">
+        <input type="text" id="search-input" data-i18n-placeholder="searchPlaceholder">
       </div>
-      <button class="btn-icon" id="btn-filter" title="筛选">
+      <button class="btn-icon" id="btn-filter" data-i18n-title="tooltipFilter">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
         </svg>
       </button>
-      <button class="btn-icon active" id="btn-view-list" title="列表视图">
+      <button class="btn-icon active" id="btn-view-list" data-i18n-title="tooltipViewList">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="8" y1="6" x2="21" y2="6"/>
           <line x1="8" y1="12" x2="21" y2="12"/>
@@ -84,7 +89,7 @@
           <line x1="3" y1="18" x2="3.01" y2="18"/>
         </svg>
       </button>
-      <button class="btn-icon" id="btn-view-card" title="卡片视图">
+      <button class="btn-icon" id="btn-view-card" data-i18n-title="tooltipViewCard">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="7" height="7"/>
           <rect x="14" y="3" width="7" height="7"/>
@@ -92,7 +97,20 @@
           <rect x="14" y="14" width="7" height="7"/>
         </svg>
       </button>
-      <button class="btn-icon" id="btn-clear" title="清空">
+      <button class="btn-icon" id="btn-group" data-i18n-title="tooltipGroupByPage">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-scroll" data-i18n-title="tooltipScrollCapture">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <polyline points="19 12 12 19 5 12"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-clear" data-i18n-title="tooltipClear">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="3 6 5 6 21 6"/>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -103,27 +121,35 @@
     <!-- Filter Panel (collapsible) -->
     <div class="filter-panel" id="filter-panel" style="display: none;">
       <div class="filter-row">
-        <label>最小大小 (KB)</label>
+        <label data-i18n="filterSource"></label>
+        <div class="source-control" id="source-filter">
+          <button class="source-option active" data-source="all" data-i18n="filterSourceAll"></button>
+          <button class="source-option" data-source="network" data-i18n="filterSourceNetwork"></button>
+          <button class="source-option" data-source="dom" data-i18n="filterSourceDom"></button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <label data-i18n="filterMinSize"></label>
         <input type="number" id="filter-min-size" placeholder="0" min="0">
       </div>
       <div class="filter-row size-row">
-        <label>内容大小</label>
+        <label data-i18n="filterContentSize"></label>
         <div class="size-control">
           <input type="range" id="content-size-range" min="84" max="180" step="4">
           <input type="number" id="content-size-input" min="84" max="180" step="4">
         </div>
       </div>
       <div class="filter-row">
-        <label>最小宽高 (px)</label>
+        <label data-i18n="filterMinDimensions"></label>
         <div class="dimension-control">
-          <input type="number" id="filter-min-width" placeholder="宽" min="0">
+          <input type="number" id="filter-min-width" data-i18n-placeholder="filterWidthPlaceholder" min="0">
           <span class="dimension-separator">×</span>
-          <input type="number" id="filter-min-height" placeholder="高" min="0">
+          <input type="number" id="filter-min-height" data-i18n-placeholder="filterHeightPlaceholder" min="0">
         </div>
       </div>
       <div class="filter-row">
-        <label>扩展名 (逗号分隔)</label>
-        <input type="text" id="filter-extensions" placeholder=".jpg,.png,.webp">
+        <label data-i18n="filterExtensions"></label>
+        <input type="text" id="filter-extensions" data-i18n-placeholder="filterExtensionsPlaceholder">
       </div>
     </div>
 
@@ -135,22 +161,28 @@
           <circle cx="8.5" cy="8.5" r="1.5"/>
           <polyline points="21 15 16 10 5 21"/>
         </svg>
-        <p>开启监听后，浏览网页时捕获的图片将显示在这里</p>
+        <p data-i18n="emptyStateIdle"></p>
       </div>
     </div>
 
     <!-- Footer -->
     <footer class="footer">
-      <button class="btn-secondary" id="btn-select-all">全选</button>
-      <button class="btn-secondary" id="btn-export">导出列表</button>
-      <button class="btn-primary" id="btn-download-selected">下载选中</button>
-      <button class="btn-primary" id="btn-download-all">全部下载</button>
+      <button class="btn-secondary" id="btn-select-all" data-i18n="btnSelectAll"></button>
+      <button class="btn-secondary" id="btn-export" data-i18n="btnExport"></button>
+      <button class="btn-primary" id="btn-download-selected" data-i18n="btnDownloadSelected"></button>
+      <button class="btn-primary" id="btn-download-all" data-i18n="btnDownloadAll"></button>
     </footer>
+
+    <!-- 站点级捕获开关（当前标签页站点） -->
+    <div class="site-row" id="site-row" hidden>
+      <span class="site-info" id="site-info"></span>
+      <button class="site-action" id="btn-site-toggle" type="button"></button>
+    </div>
 
     <!-- Status indicator -->
     <div class="status-indicator" id="status-indicator">
       <span class="status-dot" id="status-dot"></span>
-      <span id="status-text">监听已关闭</span>
+      <span id="status-text"></span>
     </div>
   </div>
 
@@ -158,18 +190,18 @@
   <div id="lightbox" hidden>
     <div id="lightbox-stage"></div>
     <div id="lightbox-caption"></div>
-    <button id="lightbox-close" class="lightbox-btn" title="关闭 (Esc)">
+    <button id="lightbox-close" class="lightbox-btn" data-i18n-title="tooltipClose">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"/>
         <line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
     </button>
-    <button id="lightbox-prev" class="lightbox-btn" title="上一个 (←)">
+    <button id="lightbox-prev" class="lightbox-btn" data-i18n-title="tooltipPrev">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="15 18 9 12 15 6"/>
       </svg>
     </button>
-    <button id="lightbox-next" class="lightbox-btn" title="下一个 (→)">
+    <button id="lightbox-next" class="lightbox-btn" data-i18n-title="tooltipNext">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="9 18 15 12 9 6"/>
       </svg>

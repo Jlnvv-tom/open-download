@@ -18,7 +18,7 @@
 
 1. 网络层被动监听：能捕获 DOM 中不出现的资源（预加载图、轮播后台原图、JS 动态请求）。
 2. 图片 + 视频双类型一站式（两个竞品赛道几乎互不跨界）。
-3. 零依赖、无远程资源、无统计上报、MIT 开源、83 个测试用例的工程质量。
+3. 零依赖、无远程资源、无统计上报、MIT 开源、154 个测试用例的工程质量。
 
 ## 2. 现状基线（v1.2.0）
 
@@ -56,28 +56,28 @@
 > 逐任务实现方案、边界情况与测试计划详见
 > [specs/features/v13-experience-polish/2026-09-19-v13-experience-polish-design.md](specs/features/v13-experience-polish/2026-09-19-v13-experience-polish-design.md)。
 
-- [ ] **V13-00（P0）popup 前置重构：容器事件委托 + `MEDIA_FOUND` 增量插入**（走查新增，所有 UI 任务的地基，详见设计文档 FR-0）
-- [ ] **V13-01（P0）修复 `urlDedupeKey` 丢 query 误伤**
+- [x] **V13-00（P0）popup 前置重构：容器事件委托 + `MEDIA_FOUND` 增量插入**（走查新增，所有 UI 任务的地基，详见设计文档 FR-0）
+- [x] **V13-01（P0）修复 `urlDedupeKey` 丢 query 误伤**
   - 涉及：`src/lib/utils.js:189`、`src/lib/store.js`、`tests/`
   - 方案：去重 key 纳入完整 URL 指纹（或「保留关键参数」策略）；存量数据兼容——仅对新条目启用新 key，不做迁移脚本
   - 验收：同路径不同参数的两张 CDN 图不再合并；`npm test` 全绿，新增去重回归用例
-- [ ] **V13-02（P0）单条直接下载**
+- [x] **V13-02（P0）单条直接下载**
   - 涉及：`src/popup/`、`src/lib/constants.js`（新增 MESSAGE_TYPES，如 `DOWNLOAD_ONE`）、`src/background/index.js`
   - 验收：列表/卡片项可单独下载，状态徽章 pending → downloading → downloaded/failed 正确流转，与统计去重逻辑不冲突
-- [ ] **V13-03（P0）失败重试 + 真正取消**
+- [x] **V13-03（P0）失败重试 + 真正取消**
   - 涉及：`src/lib/downloader.js:182`（重写 `cancelAll`）、popup 状态列
   - 方案：重试复用单条下载路径；取消调用 `chrome.downloads.cancel(downloadId)` 并清理队列
   - 验收：失败条目一键重试成功；批量下载中止后浏览器下载任务同步取消
-- [ ] **V13-04（P1）lightbox 大图/视频预览**
+- [x] **V13-04（P1）lightbox 大图/视频预览**
   - 涉及：`src/popup/`（HTML/CSS/JS）
   - 验收：点击缩略图放大、视频内联播放；支持 Esc 关闭、←/→ 翻页；不引入远程资源
-- [ ] **V13-05（P1）命名策略修正**
+- [x] **V13-05（P1）命名策略修正**
   - 涉及：`src/lib/utils.js:169`
   - 验收：sequential 前缀按媒体类型区分（`img_`/`video_`）；无扩展名时从 MIME 推断而非一律 `.jpg`
-- [ ] **V13-06（P1）容量上限可视化**
+- [x] **V13-06（P1）容量上限可视化**
   - 涉及：`src/lib/store.js:152`、popup 顶部提示条
   - 验收：达到 4500 条时出现提示；发生截断时用户可见截断数量
-- [ ] **V13-07（P2）搜索真防抖 + 导出当前筛选结果**
+- [x] **V13-07（P2）搜索真防抖 + 导出当前筛选结果**
   - 涉及：`src/popup/popup.js`
   - 验收：连续输入只触发一次渲染（200ms 防抖）；导出 JSON 内容与当前筛选视图一致
 
@@ -86,42 +86,47 @@
 > 逐任务实现方案、边界情况与测试计划详见
 > [specs/features/v14-capture-enhancement/2026-09-20-v14-capture-enhancement-design.md](specs/features/v14-capture-enhancement/2026-09-20-v14-capture-enhancement-design.md)。
 
-- [ ] **V14-01（P0）DOM 扫描兜底捕获**
+- [x] **V14-01（P0）DOM 扫描兜底捕获**
   - 涉及：`src/content/index.js`（从「仅回填尺寸」扩展为「未捕获资源入库」）、`src/background/index.js`（`CONTENT_IMAGES_UPDATE` 处理扩展）、`src/lib/store.js`（记录增加 `source: 'dom' | 'network'` 字段）
   - 方案：content script 扫描 `img[src]`、`video[src/poster]`，与已捕获记录按 URL 合并去重；`filters.minDimensions` 等捕获期过滤沿用设置
   - 验收：禁网缓存场景下刷新页面仍能捕获可见图片；popup 可按来源筛选；体积膨胀可控（仍受 5000 条上限约束）
-- [ ] **V14-02（P0）站点级监听开关**
+- [x] **V14-02（P0）站点级监听开关**
   - 涉及：`src/lib/constants.js`（`DEFAULT_SETTINGS.siteRules`）、popup 顶部、background 捕获链
   - 方案：`siteRules` 支持按域名「总是允许/总是拦截/跟随全局」，Popup 显示当前站点状态并可一键暂停
   - 验收：在拦截域名下不捕获任何资源；设置在 SW 重启后仍生效
-- [ ] **V14-03（P1）自动滚动/翻页抓取**
+- [x] **V14-03（P1）自动滚动/翻页抓取**
   - 涉及：`src/content/`（可选滚动注入器）、popup 触发入口
   - 方案：用户显式触发（不自动滚动），配合 V14-01 的 DOM 兜底捕获长列表页
   - 验收：长列表页滚动到底后新增图片均入库，可随时停止
-- [ ] **V14-04（P1）视频信息补齐**
+- [x] **V14-04（P1）视频信息补齐**
   - 涉及：`src/content/index.js`、`src/lib/store.js`（激活 duration 字段）、popup 卡片
   - 验收：视频卡片显示时长角标与 poster 缩略图（有 poster 时）
-- [ ] **V14-05（P2）按页面/Tab 分组**
+- [x] **V14-05（P2）按页面/Tab 分组**
   - 涉及：`src/popup/`
   - 验收：列表可按 `tabUrl` 分组折叠，多标签页场景可扫读，分组状态不影响选择
 
 ### v1.5 工程强化 + 国际化 + 上架（目标：大文件安全、面向全球市场发行）
 
-- [ ] **V15-01（P0）大文件旁路与 ZIP 分卷**
+> 逐任务实现方案、边界情况与测试计划详见
+> [specs/features/v15-engineering-i18n-listing/2026-09-21-v15-engineering-i18n-listing-design.md](specs/features/v15-engineering-i18n-listing/2026-09-21-v15-engineering-i18n-listing-design.md)。
+
+- [x] **V15-01（P0）大文件旁路与 ZIP 分卷**
   - 涉及：`src/lib/zip.js`、`src/background/index.js`（offscreen 编排）、`src/lib/downloader.js`
   - 方案：单文件 >50MB 或整包预估 >500MB 时自动改为逐条 `chrome.downloads.download`（复用并发路径）；ZIP 侧评估按 N 个文件分卷，替代单 Blob 全内存
   - 验收：1GB 量级批量下载不再崩溃/不再 OOM；打包超时（300s）不再静默失败，进度与失败原因可见
-- [ ] **V15-02（P1）打包携带 Cookie 可选**
+- [x] **V15-02（P1）打包携带 Cookie 可选**
   - 涉及：`src/offscreen/offscreen.js`（fetch `credentials`）、`src/options/`
   - 验收：登录态资源（如需 Cookie 的 CDN 图）勾选后可打包；默认关闭并在设置页说明隐私影响
-- [ ] **V15-03（P0）i18n 中英双语**
+- [x] **V15-03（P0）i18n 中英双语**
   - 涉及：`src/_locales/`、`src/manifest.json`（`default_locale`）、popup/options 文案抽离
   - 验收：切换浏览器语言 Popup/Options/右键菜单全部跟随；不遗留硬编码中文
 - [ ] **V15-04（P0）上架 Chrome Web Store**
   - 涉及：`docs/`（新增 Privacy Policy 页）、商店素材（截图/描述，中英）、权限使用说明
   - 验收：审核通过上架；权限声明与实际一致（webRequest 仅观察、无远程代码）
-- [ ] **V15-05（P2）Firefox 移植可行性评估**
+  - 进度：仓库内准备已完成（[docs/privacy.html](docs/privacy.html)、[docs/store-listing.md](docs/store-listing.md)、版本号升 1.5.0）；**待人工完成**：补 3 张 1280×800 截图与 promo tile、提交开发者后台、等待审核通过
+- [x] **V15-05（P2）Firefox 移植可行性评估**
   - 产出：调研文档（webRequest、offscreen、storage 差异），给「做/不做」结论，不实现
+  - 结论文档：[specs/analysis/firefox-port-feasibility/2026-09-21-firefox-port-feasibility.md](specs/analysis/firefox-port-feasibility/2026-09-21-firefox-port-feasibility.md)（建议做，但排在 v1.6，唯一阻塞点是 offscreen 宿主抽象）
 
 ### v1.6 差异化放大（方向性，立项时再细化）
 
@@ -147,7 +152,7 @@
 |------|------|---------|
 | popup/options/content/offscreen 无测试 | Jest coverage 仅覆盖 `src/lib/**` | v1.3 起每个版本为新增逻辑补测试；v1.5 评估 content/offscreen 的可测性 |
 | UI 硬编码中文 | 与 i18n 任务合并 | V15-03 |
-| `DOWNLOAD_SELECTED`/`DOWNLOAD_ALL` 消息路径与 downloader 队列死代码 | 与「真取消」重构一并清理 | V13-03 |
+| `DOWNLOAD_SELECTED` 消息路径 | 已被 V15-01 启用为「批量直下」通路，不再是死代码；同批移除的 `DOWNLOAD_ALL` 仍保持删除状态 | 已随 V15-01 关闭 |
 | 存储无字节级配额检测 | 上限提示先行，配额检测视 v1.4 数据量决定 | 观察项 |
 
 ## 7. 度量指标（每个版本发布后回顾）
@@ -178,3 +183,4 @@
 | 日期 | 版本计划变更 | 备注 |
 |------|-------------|------|
 | 2026-09-19 | 初版：v1.3 ~ v1.6 路线制定 | 依据竞品分析与 v1.2.0 代码走查 |
+| 2026-09-21 | v1.3 / v1.4 / v1.5（除 V15-04）勾选完成 | 补齐 v1.4 全部缺口（含 `CONTENT_IMAGES_UPDATE` 回归修复），并落地 V15-01/02/03/05；测试 83 → 154；版本号升 1.5.0 |

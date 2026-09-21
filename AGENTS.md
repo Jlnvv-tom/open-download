@@ -14,6 +14,8 @@ Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听
 - `src/background/index.js`: 核心后台逻辑，包括 `webRequest` 监听、右键菜单、消息路由、offscreen ZIP 打包编排和下载触发。
 - `src/offscreen/`: offscreen document（`offscreen/index.html` + `offscreen.js`），在完整 DOM 上下文中抓取媒体并打包 ZIP，由 background 按需创建/关闭。
 - `src/lib/constants.js`: 全局常量、默认设置和 message type 定义。
+- `src/lib/i18n.js`: `chrome.i18n` 的轻量封装，提供 `t(key, ...args)` 与 `applyI18n(root)`。
+- `src/_locales/{zh_CN,en}/messages.json`: 中英文案源（`default_locale` 为 `zh_CN`）。新增语言只需新增目录。
 - `src/lib/store.js`: `chrome.storage.local` 上的媒体、设置和统计数据管理。
 - `src/lib/downloader.js`: 批量下载、并发控制和下载状态更新。
 - `src/lib/zip.js`: 无压缩 ZIP 打包工具，由 offscreen 文档调用（支持 `onProgress` 进度回调）。
@@ -23,7 +25,7 @@ Open Download 是一个 Chrome Extension Manifest V3 项目，用于全局监听
 - `src/content/index.js`: 页面内图片尺寸收集和动态图片观察。
 - `src/assets/`: 扩展图标。
 - `dist/`: `npm run build` 生成的 Chrome 加载目录，不手动编辑。
-- `docs/`: 官网落地页静态站点（无远程资源），通过 Deploy Docs 工作流部署到 GitHub Pages。
+- `docs/`: 官网落地页静态站点（无远程资源），通过 Deploy Docs 工作流部署到 GitHub Pages。`privacy.html` 是商店要求的隐私政策页；`store-listing.md` 是商店提交文案与素材清单（不上线，仅作提交依据）。
 - `.github/workflows/`: `deploy-docs.yml` 部署 docs 落地页；`release.yml` 在推送 `v*` 标签时测试、打包并发布 GitHub Release。
 - `scripts/build.js`: 清理并复制 `src/` 到 `dist/`，同时校验 manifest 引用文件和 offscreen 文件。
 - `scripts/pack.js`: 构建后生成 zip 包到 `packages/`。
@@ -111,6 +113,7 @@ npm run deploy:docs
 - 下载和存储状态应通过 `ImageStore`、`DownloadManager` 这两个边界更新，避免 UI 直接改 storage 结构。
 - 避免把大量业务逻辑写进 HTML；Popup 和 Options 的行为分别放在对应 JS 文件。
 - 现有代码注释以中文为主；新增注释保持简短，只解释不明显的行为。
+- **所有用户可见文案必须走 i18n**：JS 里用 `t('key')`，HTML 里用 `data-i18n` / `data-i18n-placeholder` / `data-i18n-title`（元素不写中文兜底文本），右键菜单标题用 `__MSG_key__`。新增 key 要同时补 `zh_CN` 与 `en`，`npm test` 会校验两份文件的 key 集合一致、被引用的 key 存在，并禁止 popup/options 出现硬编码中文。
 
 ## Chrome 扩展注意事项
 
@@ -118,7 +121,9 @@ npm run deploy:docs
 - `src/background/index.js` 的 `webRequest.onCompleted` 监听器在**模块顶层注册**，每次 SW 启动同步挂载；是否捕获由 `settings.enabled` 决定（不再使用 `isListening` 标志和动态增删监听器）。不要把监听器注册改回条件分支内。
 - ZIP 打包依赖 background 与 offscreen document 的消息编排（`ZIP_BUILD_*` 消息族），offscreen 文档由 `ensureOffscreenDocument()` 按需创建，下载结束后关闭；修改时注意 blob URL 的生命周期。
 - `chrome.storage.local` 是异步 API，但当前 `store.addImage()` 内部有 fire-and-forget 保存行为。涉及一致性或批量更新时要谨慎。
-- `src/content/index.js` 会向 background 发送 `CONTENT_IMAGES_UPDATE`，`src/background/index.js` 会将尺寸信息补充到已捕获图片记录。
+- `src/content/index.js` 向 background 发送 `DOM_MEDIA_UPDATE`（img + video 候选）：已存在的记录只富化尺寸/时长/封面，webRequest 漏捕的资源兜底入库并标注 `source: 'dom'`。content script 不是 ES module，其消息类型是字符串字面量，改名时必须与 `src/lib/constants.js` 同步。
+- `src/content/index.js` 同时承载自动滚动抓取（`SCROLL_CAPTURE_START/STOP`），结束时补一次全量扫描以覆盖「懒加载改写既有节点 src」的情况。
+- 批量下载由 `src/background/index.js` 的 `planTransfer()` 决定走 ZIP 还是逐条直下：超阈值（`settings.transfer`）改直下并复用 `DownloadManager`，未超阈值按 `maxZipFiles` / `maxZipBytes` 分卷串行打包，每卷结束即回写状态。
 - `src/lib/utils.js` 的 `isImageUrl()` 使用 `IMAGE_EXTENSIONS`，如修改该函数，确认常量导入正确。
 
 ## UI 修改指南
@@ -164,12 +169,19 @@ npm run deploy:docs
 - `savePath`
 - `dedupe`
 - `fileNaming`
+- `sendCookies`（打包请求是否携带 Cookie，默认关闭）
+- `siteRules`（`{ [domain]: 'block' }`，整表替换语义，无键 = 跟随全局）
+- `transfer`（大文件旁路与分卷阈值：`bypassFileSize` / `bypassBatchSize` / `unknownVideoSize` / `maxZipFiles` / `maxZipBytes` / `maxConcurrencyForLarge` / `downloadTimeoutMs`）
 - `ui.viewMode`
 - `ui.mediaType`
+- `ui.groupByPage`
+- `ui.sourceFilter`
 - `filters.domains`
 - `filters.extensions`
 - `filters.mediaTypes`
 - `filters.minDimensions`
+
+media 记录中与捕获来源相关的字段：`source`（`'network' | 'dom'`，老数据归一为 `network`）、`duration`（视频时长，秒）。
 
 ## 变更前检查清单
 

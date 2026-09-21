@@ -1,6 +1,7 @@
 // options/options.js — 设置页面逻辑
 
 import { MESSAGE_TYPES, DEFAULT_SETTINGS } from '../lib/constants.js';
+import { applyI18n, t } from '../lib/i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -9,6 +10,7 @@ const fields = {
   savePath: $('#save-path'),
   fileNaming: $('#file-naming'),
   concurrency: $('#concurrency'),
+  sendCookies: $('#send-cookies'),
   minSize: $('#min-size'),
   maxSize: $('#max-size'),
   captureImage: $('#capture-image'),
@@ -33,6 +35,7 @@ async function loadSettings() {
   fields.savePath.value = s.savePath;
   fields.fileNaming.value = s.fileNaming;
   fields.concurrency.value = s.concurrency;
+  fields.sendCookies.checked = Boolean(s.sendCookies);
   fields.minSize.value = s.minImageSize ? (s.minImageSize / 1024).toFixed(0) : '';
   fields.maxSize.value = s.maxImageSize ? (s.maxImageSize / 1024).toFixed(0) : '';
   const mediaTypes = s.filters.mediaTypes || [];
@@ -67,6 +70,7 @@ function collectSettings() {
     savePath: fields.savePath.value || 'OpenDownload',
     fileNaming: fields.fileNaming.value,
     concurrency: Math.max(1, Math.min(10, parseInt(fields.concurrency.value, 10) || 3)),
+    sendCookies: fields.sendCookies.checked,
     minImageSize: minKB * 1024,
     maxImageSize: maxKB * 1024,
     dedupe: fields.dedupe.checked,
@@ -89,21 +93,24 @@ $('#btn-save').addEventListener('click', async () => {
   const settings = collectSettings();
   const res = await sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, { settings });
   if (res.success) {
-    showToast('设置已保存');
+    showToast(t('optionsSaved'));
   } else {
-    showToast('保存失败: ' + (res.error || ''));
+    showToast(t('optionsSaveFailed', res.error || ''));
   }
 });
 
 $('#btn-reset').addEventListener('click', async () => {
-  if (!confirm('确定恢复默认设置？')) return;
+  if (!confirm(t('optionsResetConfirm'))) return;
   const res = await sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, {
     settings: DEFAULT_SETTINGS,
   });
   if (res.success) {
     await loadSettings();
-    showToast('已恢复默认设置');
+    showToast(t('optionsResetDone'));
   }
 });
 
+// 静态文案与页面标题本地化（<title> 不在 applyI18n 的扫描范围内）
+applyI18n(document);
+document.title = t('optionsTitle');
 loadSettings();

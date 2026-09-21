@@ -1,4 +1,5 @@
 import { generateFilename, sanitizeFilename } from './utils.js';
+import { t } from './i18n.js';
 
 const textEncoder = new TextEncoder();
 
@@ -112,13 +113,19 @@ function makeEndOfCentralDirectory(entryCount, centralSize, centralOffset) {
 
 export async function createMediaZip(mediaItems, {
   fileNaming = 'original',
-  fetchFn = fetch,
+  sendCookies = false,
+  fetchFn = null,
   now = new Date(),
   onProgress = null,
 } = {}) {
   if (!mediaItems.length) {
-    throw new Error('没有可打包的资源');
+    throw new Error(t('errorNothingToPack'));
   }
+
+  // 未注入 fetchFn 时按 sendCookies 决定是否携带凭据；注入时（测试）由调用方负责
+  const doFetch = fetchFn || (sendCookies
+    ? (url) => fetch(url, { credentials: 'include' })
+    : (url) => fetch(url));
 
   const usedNames = new Set();
   const entries = [];
@@ -129,7 +136,7 @@ export async function createMediaZip(mediaItems, {
   for (let index = 0; index < mediaItems.length; index++) {
     const media = mediaItems[index];
     try {
-      const response = await fetchFn(media.url);
+      const response = await doFetch(media.url);
       if (!response?.ok) {
         throw new Error(`HTTP ${response?.status || 0}`);
       }
@@ -173,7 +180,7 @@ export async function createMediaZip(mediaItems, {
   }
 
   if (entries.length === 0) {
-    throw new Error('所有资源打包失败');
+    throw new Error(t('errorAllPackFailed'));
   }
 
   const centralOffset = offset;
@@ -191,7 +198,15 @@ export async function createMediaZip(mediaItems, {
   };
 }
 
-export function makeZipFilename(date = new Date()) {
+/**
+ * 生成 ZIP 文件名
+ * @param {Date} date - 时间戳来源
+ * @param {Object} [options] - 分卷信息（V15-01）
+ * @param {number} [options.volume=1] - 当前卷号（从 1 开始）
+ * @param {number} [options.volumes=1] - 总卷数
+ * @returns {string} 单卷时保持原命名，多卷时追加 `_partN` 后缀
+ */
+export function makeZipFilename(date = new Date(), { volume = 1, volumes = 1 } = {}) {
   const pad = value => String(value).padStart(2, '0');
   const stamp = [
     date.getFullYear(),
@@ -202,5 +217,6 @@ export function makeZipFilename(date = new Date()) {
     pad(date.getMinutes()),
     pad(date.getSeconds()),
   ].join('');
-  return `open-download-${stamp}.zip`;
+  const base = `open-download-${stamp}`;
+  return volumes > 1 ? `${base}_part${volume}.zip` : `${base}.zip`;
 }

@@ -8,6 +8,7 @@ import {
   VIDEO_EXTENSIONS,
   VIDEO_MIME_TYPES
 } from './constants.js';
+import { t } from './i18n.js';
 
 /**
  * 从 URL 中提取文件名
@@ -125,7 +126,7 @@ export function isMediaUrl(url) {
  * @returns {string} 格式化后的文件大小字符串，如 "1.5 MB"
  */
 export function formatSize(bytes) {
-  if (!bytes || bytes === 0) return '未知';
+  if (!bytes || bytes === 0) return t('sizeUnknown');
   const units = ['B', 'KB', 'MB', 'GB'];
   let i = 0;
   while (bytes >= 1024 && i < units.length - 1) {

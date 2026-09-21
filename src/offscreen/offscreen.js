@@ -3,6 +3,7 @@
 
 import { MESSAGE_TYPES } from '../lib/constants.js';
 import { createMediaZip } from '../lib/zip.js';
+import { t } from '../lib/i18n.js';
 
 // 通知 background 文档已就绪（createDocument 与监听器注册之间存在竞态）
 chrome.runtime.sendMessage({
@@ -26,17 +27,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-async function buildZip({ zipName, fileNaming, items }) {
+async function buildZip({ zipName, fileNaming, items, sendCookies = false, volume = 1, volumes = 1 }) {
   if (typeof zipName !== 'string' || !Array.isArray(items) || items.length === 0) {
-    throw new Error('ZIP 打包参数无效');
+    throw new Error(t('errorInvalidZipParams'));
   }
 
   const result = await createMediaZip(items, {
     fileNaming,
+    sendCookies,
     onProgress: (done, total) => {
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPES.ZIP_BUILD_PROGRESS,
-        payload: { done, total, zipName },
+        payload: { done, total, zipName, volume, volumes },
       }).catch(() => {});
     },
   });

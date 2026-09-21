@@ -4,6 +4,21 @@
  */
 
 import { jest } from '@jest/globals';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+// 用真实的中文文案驱动 chrome.i18n mock，保证断言的是实际用户可见文本
+const LOCALE = 'zh_CN';
+const messages = JSON.parse(
+  readFileSync(path.join(process.cwd(), 'src/_locales', LOCALE, 'messages.json'), 'utf8')
+);
+
+function substitute(template, args) {
+  return template.replace(/\$(\d+)/g, (match, index) => {
+    const value = args[Number(index) - 1];
+    return value === undefined ? match : String(value);
+  });
+}
 
 // 将 jest 设为全局变量
 global.jest = jest;
@@ -174,6 +189,21 @@ global.chrome = {
     }
   },
 
+  i18n: {
+    _locale: LOCALE,
+
+    getMessage(key, args = []) {
+      const entry = messages[key];
+      if (!entry) return '';
+      const list = Array.isArray(args) ? args : [args];
+      return substitute(entry.message, list);
+    },
+
+    getUILanguage() {
+      return LOCALE.replace('_', '-');
+    }
+  },
+
   webRequest: {
     _listeners: new Map(),
     onCompleted: {
@@ -198,20 +228,71 @@ global.chrome = {
   },
 
   tabs: {
+    _activeTab: { id: 1, url: 'https://example.com', title: 'Example Page' },
+    _sentMessages: [],
+    _sendMessageError: null,
+    _queryError: null,
+
     async get(tabId) {
       return {
         id: tabId,
         url: 'https://example.com',
         title: 'Example Page'
       };
+    },
+
+    async query(queryInfo) {
+      if (global.chrome.tabs._queryError) throw new Error(global.chrome.tabs._queryError);
+      return [{ ...global.chrome.tabs._activeTab }];
+    },
+
+    async sendMessage(tabId, message) {
+      if (global.chrome.tabs._sendMessageError) throw new Error(global.chrome.tabs._sendMessageError);
+      global.chrome.tabs._sentMessages.push({ tabId, message });
+      return { success: true };
+    },
+
+    _setActiveTab(tab) {
+      global.chrome.tabs._activeTab = tab;
+    },
+
+    _reset() {
+      global.chrome.tabs._activeTab = { id: 1, url: 'https://example.com', title: 'Example Page' };
+      global.chrome.tabs._sentMessages = [];
+      global.chrome.tabs._sendMessageError = null;
+      global.chrome.tabs._queryError = null;
     }
   },
 
   contextMenus: {
-    create(options) {},
-    remove(menuItemId) {},
+    _created: [],
+    _clickListeners: new Set(),
+
+    create(options) {
+      global.chrome.contextMenus._created.push(options);
+    },
+
+    remove(menuItemId) {
+      global.chrome.contextMenus._created =
+        global.chrome.contextMenus._created.filter(item => item.id !== menuItemId);
+    },
+
     onClicked: {
-      addListener(callback) {}
+      addListener(callback) {
+        global.chrome.contextMenus._clickListeners.add(callback);
+      },
+      removeListener(callback) {
+        global.chrome.contextMenus._clickListeners.delete(callback);
+      }
+    },
+
+    _trigger(info, tab) {
+      global.chrome.contextMenus._clickListeners.forEach(callback => callback(info, tab));
+    },
+
+    // 注意：不清空 _clickListeners —— 监听器在模块顶层注册，由模块导入时挂载一次
+    _reset() {
+      global.chrome.contextMenus._created = [];
     }
   }
 };
@@ -223,4 +304,6 @@ beforeEach(() => {
   global.chrome.runtime._reset();
   global.chrome.webRequest._reset();
   global.chrome.offscreen._reset();
+  global.chrome.tabs._reset();
+  global.chrome.contextMenus._reset();
 });

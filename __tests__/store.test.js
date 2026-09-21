@@ -66,6 +66,106 @@ describe('ImageStore', () => {
     });
   });
 
+  describe('来源与时长字段', () => {
+    beforeEach(async () => {
+      await testStore.init();
+    });
+
+    test('findMediaByUrl 应该按去重 key 命中记录', () => {
+      const image = testStore.addMedia({ url: 'https://cdn.example.com/a.jpg?size=2&v=1' });
+
+      expect(testStore.findMediaByUrl('https://cdn.example.com/a.jpg?v=1&size=2')).toBe(image);
+      expect(testStore.findMediaByUrl('https://cdn.example.com/b.jpg')).toBeUndefined();
+    });
+
+    test('缺少 source 的老数据应该归一为 network', async () => {
+      await global.chrome.storage.local.set({
+        captured_images: [{ id: 'legacy-1', url: 'https://cdn.example.com/legacy.jpg', filename: 'legacy.jpg' }]
+      });
+
+      const legacyStore = new ImageStore();
+      await legacyStore.init();
+
+      expect(legacyStore.getImageById('legacy-1').source).toBe('network');
+    });
+
+    test('source=dom 的记录应该保留 dom', () => {
+      const media = testStore.addMedia({ url: 'https://cdn.example.com/dom.jpg', source: 'dom' });
+      expect(media.source).toBe('dom');
+    });
+
+    test('updateImageDetailsByUrl 应该富化 duration 且不覆盖已有值', () => {
+      const media = testStore.addMedia({ mediaType: 'video', url: 'https://cdn.example.com/v.mp4' });
+
+      expect(testStore.updateImageDetailsByUrl(media.url, { duration: 120 })).toBe(1);
+      expect(testStore.getImageById(media.id).duration).toBe(120);
+
+      expect(testStore.updateImageDetailsByUrl(media.url, { duration: 999 })).toBe(0);
+      expect(testStore.getImageById(media.id).duration).toBe(120);
+    });
+
+    test('getFilteredMedia 应该支持 source 维度', () => {
+      testStore.addMedia({ url: 'https://cdn.example.com/net.jpg' });
+      testStore.addMedia({ url: 'https://cdn.example.com/dom.jpg', source: 'dom' });
+
+      const domOnly = testStore.getFilteredMedia({ source: 'dom' });
+      expect(domOnly).toHaveLength(1);
+      expect(domOnly[0].url).toBe('https://cdn.example.com/dom.jpg');
+      expect(testStore.getFilteredMedia({ source: 'network' })).toHaveLength(1);
+      expect(testStore.getFilteredMedia()).toHaveLength(2);
+    });
+  });
+
+  describe('站点规则与分组设置', () => {
+    beforeEach(async () => {
+      await testStore.init();
+    });
+
+    test('默认应该没有站点规则且不按页面分组', () => {
+      const settings = testStore.getSettings();
+      expect(settings.siteRules).toEqual({});
+      expect(settings.ui.groupByPage).toBe(false);
+      expect(settings.ui.sourceFilter).toBe('all');
+    });
+
+    test('siteRules 应该整表替换而不是键级合并', async () => {
+      await testStore.saveSettings({ siteRules: { 'a.com': 'block', 'b.com': 'block' } });
+      await testStore.saveSettings({ siteRules: { 'a.com': 'block' } });
+
+      expect(testStore.getSettings().siteRules).toEqual({ 'a.com': 'block' });
+    });
+
+    test('默认应该带传输阈值且不携带 Cookie', () => {
+      const settings = testStore.getSettings();
+      expect(settings.sendCookies).toBe(false);
+      expect(settings.transfer.bypassFileSize).toBe(50 * 1024 * 1024);
+      expect(settings.transfer.bypassBatchSize).toBe(500 * 1024 * 1024);
+      expect(settings.transfer.maxZipFiles).toBe(200);
+    });
+
+    test('transfer 部分提交不应该清空其他阈值', async () => {
+      await testStore.saveSettings({ transfer: { maxZipFiles: 10 } });
+
+      const settings = testStore.getSettings();
+      expect(settings.transfer.maxZipFiles).toBe(10);
+      expect(settings.transfer.bypassFileSize).toBe(50 * 1024 * 1024);
+    });
+
+    test('sendCookies 应该可持久化', async () => {
+      await testStore.saveSettings({ sendCookies: true });
+      expect(testStore.getSettings().sendCookies).toBe(true);
+    });
+
+    test('ui.groupByPage / ui.sourceFilter 应该持久化且不影响其他 ui 字段', async () => {
+      await testStore.saveSettings({ ui: { groupByPage: true, sourceFilter: 'dom' } });
+
+      const settings = testStore.getSettings();
+      expect(settings.ui.groupByPage).toBe(true);
+      expect(settings.ui.sourceFilter).toBe('dom');
+      expect(settings.ui.viewMode).toBe('list');
+    });
+  });
+
   describe('图片管理', () => {
     beforeEach(async () => {
       await testStore.init();
