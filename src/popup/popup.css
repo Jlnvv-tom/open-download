@@ -202,7 +202,8 @@ body {
   transition: all 0.2s;
 }
 
-.tab span {
+/* 只作用于计数徽章：标签本身是 <span data-i18n>，不能连带套用徽章样式 */
+.tab .tab-count {
   margin-left: 4px;
   font-size: 11px;
   color: var(--text-muted);
@@ -219,7 +220,7 @@ body {
   color: #fff;
 }
 
-.tab.active span {
+.tab.active .tab-count {
   color: rgba(255, 255, 255, 0.85);
 }
 

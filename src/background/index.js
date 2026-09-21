@@ -387,7 +387,15 @@ async function buildZipVolume(items, settings, { volume, volumes }) {
   await waitForOffscreenReady();
 
   const zipName = makeZipFilename(new Date(), { volume, volumes });
-  const result = await requestZipBuild({ zipName, items, settings, volume, volumes });
+
+  let result;
+  try {
+    result = await requestZipBuild({ zipName, items, settings, volume, volumes });
+  } catch (error) {
+    // 超时/发送失败时文档内可能仍有进行中的打包，关闭以复位，避免下一轮复用脏文档
+    await closeOffscreenDocument().catch(() => {});
+    throw error;
+  }
 
   if (result?.error) {
     await closeOffscreenDocument().catch(() => {});
@@ -658,13 +666,10 @@ function handleRuntimeMessage(message, sender, sendResponse) {
         }
 
         case MESSAGE_TYPES.DOWNLOAD_SELECTED: {
-          await store.init();
-          const ids = message.payload?.ids || [];
-          const images = ids.map(id => store.getImageById(id)).filter(Boolean);
-          const results = await downloader.downloadBatch(images);
-          const succeeded = results.filter(r => r.success).length;
-          const failed = results.filter(r => !r.success).length;
-          sendResponse({ success: true, succeeded, failed });
+          // 显式批量直下入口：收敛到统一编排，避免与 DOWNLOAD_ZIP 各写一套直下逻辑
+          // 当前 popup 未使用（V15-01 的旁路判定由 DOWNLOAD_ZIP 内部完成），预留给 V16-02
+          const result = await handleDownloadZip({ ...(message.payload || {}), strategy: 'direct' });
+          sendResponse({ success: true, ...result });
           break;
         }
 
@@ -725,6 +730,12 @@ function handleRuntimeMessage(message, sender, sendResponse) {
         case MESSAGE_TYPES.SCROLL_CAPTURE_STOP: {
           const result = await routeScrollCapture(message.type);
           sendResponse(result);
+          break;
+        }
+
+        case MESSAGE_TYPES.SCROLL_CAPTURE_STATE: {
+          // content script 广播给 popup 的状态消息，background 只需确认接收
+          sendResponse({ success: true });
           break;
         }
 

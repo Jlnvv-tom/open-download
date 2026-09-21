@@ -176,6 +176,12 @@
   "unknownError": {
     "message": "未知错误"
   },
+  "listComma": {
+    "message": "，"
+  },
+  "listSemicolon": {
+    "message": "；"
+  },
   "dimensionUnknown": {
     "message": "未知尺寸"
   },

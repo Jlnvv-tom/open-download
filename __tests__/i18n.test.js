@@ -48,7 +48,8 @@ function stripComments(content, isHtml) {
     .replace(isHtml ? /<!--[\s\S]*?-->/g : /(?!)/g, '');
 }
 
-const CJK_PATTERN = /[\u4e00-\u9fa5]/;
+// 覆盖 CJK 汉字、CJK 标点与全角字符：英文界面下出现全角标点同样是缺陷
+const CJK_PATTERN = /[\u3000-\u303f\u4e00-\u9fa5\uff00-\uffef]/;
 
 describe('i18n 文案', () => {
   test('中英文 key 集合应该完全一致', () => {

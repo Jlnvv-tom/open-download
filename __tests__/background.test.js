@@ -793,6 +793,29 @@ describe('background message handler', () => {
     global.chrome.downloads.download = realDownload;
   });
 
+  test('DOWNLOAD_SELECTED 应该收敛到统一编排并走直下', async () => {
+    await store.init();
+
+    const realDownload = global.chrome.downloads.download;
+    global.chrome.downloads.download = jest.fn(realDownload.bind(global.chrome.downloads));
+
+    const media = store.addMedia({
+      url: 'https://cdn.example.com/images/selected.jpg',
+      filename: 'selected.jpg'
+    });
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.DOWNLOAD_SELECTED,
+      payload: { ids: [media.id] }
+    });
+
+    expect(response).toMatchObject({ success: true, strategy: 'direct', succeeded: 1 });
+    expect(global.chrome.offscreen._created).toBe(0);
+    expect(store.getMediaById(media.id)).toMatchObject({ status: 'downloaded' });
+
+    global.chrome.downloads.download = realDownload;
+  });
+
   test('DOWNLOAD_ZIP 应该在 offscreen 打包并触发下载', async () => {
     await store.init();
     await store.saveSettings({ savePath: 'OpenDownload' });

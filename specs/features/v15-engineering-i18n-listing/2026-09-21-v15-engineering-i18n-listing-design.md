@@ -317,7 +317,8 @@ HTML 的 `<title>` 不支持 `__MSG__`（那只作用于 manifest 字段），�
 
 ```js
 // MESSAGE_TYPES：新增 0 个，删除 0 个
-// DOWNLOAD_SELECTED：注释由「保留给 v1.5 大文件旁路（V15-01）复用」改为实际语义（显式批量直下通路）
+// DOWNLOAD_SELECTED：收敛为「显式批量直下入口」，内部复用 handleDownloadZip({ strategy: 'direct' })，
+//                    不再单独维护一套直下逻辑；popup 暂未发送该消息，预留给 V16-02（视频默认不走 ZIP）
 // DOWNLOAD_ZIP：语义扩展为「批量下载（自动选策略：zip | direct）」
 // DOWNLOAD_SELECTED / DOWNLOAD_ZIP 的 payload 均追加可选 strategy?: 'auto' | 'zip' | 'direct'
 
@@ -334,6 +335,7 @@ transfer: {
   maxZipFiles: 200,
   maxZipBytes: 500 * 1024 * 1024,
   maxConcurrencyForLarge: 2,
+  downloadTimeoutMs: 1800000,   // 直下单文件等待超时（30 分钟），默认 120s 对大文件不够
 },
 sendCookies: false,     // 打包是否携带 Cookie，默认关闭
 

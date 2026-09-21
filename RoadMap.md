@@ -152,7 +152,7 @@
 |------|------|---------|
 | popup/options/content/offscreen 无测试 | Jest coverage 仅覆盖 `src/lib/**` | v1.3 起每个版本为新增逻辑补测试；v1.5 评估 content/offscreen 的可测性 |
 | UI 硬编码中文 | 与 i18n 任务合并 | V15-03 |
-| `DOWNLOAD_SELECTED` 消息路径 | 已被 V15-01 启用为「批量直下」通路，不再是死代码；同批移除的 `DOWNLOAD_ALL` 仍保持删除状态 | 已随 V15-01 关闭 |
+| `DOWNLOAD_SELECTED` 消息路径 | 已随 V15-01 收敛为「显式批量直下入口」（内部复用 `DOWNLOAD_ZIP` 的统一编排，不再单独维护直下逻辑）；popup 暂未发送，预留给 V16-02；同批移除的 `DOWNLOAD_ALL` 保持删除状态 | 已随 V15-01 关闭 |
 | 存储无字节级配额检测 | 上限提示先行，配额检测视 v1.4 数据量决定 | 观察项 |
 
 ## 7. 度量指标（每个版本发布后回顾）

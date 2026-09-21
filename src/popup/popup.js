@@ -604,7 +604,7 @@ function formatDownloadSummary(result) {
     parts.push(t('summaryVolumes', result.volumes.length));
   }
 
-  let message = t('downloadDone', parts.join('，'));
+  let message = t('downloadDone', parts.join(t('listComma')));
 
   const reasons = (result.failedItems || [])
     .map(item => item.error)
@@ -612,7 +612,7 @@ function formatDownloadSummary(result) {
     .slice(0, 3);
 
   if (reasons.length > 0) {
-    message += `\n${t('summaryFailureReasons', reasons.join('；'))}`;
+    message += `\n${t('summaryFailureReasons', reasons.join(t('listSemicolon')))}`;
   }
 
   return message;
@@ -1123,7 +1123,7 @@ function updateCapacityHint(statusInfo) {
   if (truncated > 0) {
     parts.push(t('capacityTruncated', truncated));
   }
-  el.capacityHint.textContent = parts.join('；');
+  el.capacityHint.textContent = parts.join(t('listSemicolon'));
   el.capacityHint.hidden = false;
 }
 
