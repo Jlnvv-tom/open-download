@@ -10,6 +10,7 @@ const fields = {
   savePath: $('#save-path'),
   fileNaming: $('#file-naming'),
   concurrency: $('#concurrency'),
+  videoDirect: $('#video-direct'),
   sendCookies: $('#send-cookies'),
   minSize: $('#min-size'),
   maxSize: $('#max-size'),
@@ -35,6 +36,8 @@ async function loadSettings() {
   fields.savePath.value = s.savePath;
   fields.fileNaming.value = s.fileNaming;
   fields.concurrency.value = s.concurrency;
+  // 默认开启：仅显式关闭（false）时才取消勾选
+  fields.videoDirect.checked = s.transfer?.videoDirect !== false;
   fields.sendCookies.checked = Boolean(s.sendCookies);
   fields.minSize.value = s.minImageSize ? (s.minImageSize / 1024).toFixed(0) : '';
   fields.maxSize.value = s.maxImageSize ? (s.maxImageSize / 1024).toFixed(0) : '';
@@ -70,6 +73,8 @@ function collectSettings() {
     savePath: fields.savePath.value || 'OpenDownload',
     fileNaming: fields.fileNaming.value,
     concurrency: Math.max(1, Math.min(10, parseInt(fields.concurrency.value, 10) || 3)),
+    // transfer 走键级合并，这里只提交本页暴露的字段，其余阈值保持原值
+    transfer: { videoDirect: fields.videoDirect.checked },
     sendCookies: fields.sendCookies.checked,
     minImageSize: minKB * 1024,
     maxImageSize: maxKB * 1024,

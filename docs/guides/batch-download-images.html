@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>批量下载网页图片：长列表页一次抓全</title>
+  <meta name="description" content="批量下载网页图片的完整流程：用滚动抓取把懒加载长列表一次加载完，再按大小、尺寸、来源筛掉图标与占位图，最后预览并打包下载。">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="../index.html">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Open Download</span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html">教程</a>
+        <a href="../index.html#features">功能</a>
+        <a href="../index.html#install">安装</a>
+        <a href="../index.html#faq">FAQ</a>
+        <a class="nav-github" href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <article class="section guide">
+      <div class="container guide-inner">
+        <p class="guide-breadcrumb"><a href="../index.html">首页</a> / <a href="index.html">教程</a> / 长列表页抓图</p>
+        <h1>批量下载网页图片：长列表页一次抓全</h1>
+        <p class="guide-lead">
+          信息流、图库、电商列表这类长页面，往往要滚动很多屏才看得到底，而图片也正是在滚动过程中才被逐个插入页面。
+          结果就是：明明页面上有几百张图，抓下来的却只有开头一屏。这篇教程给出批量下载网页图片的完整做法，
+          核心是先用滚动抓取让页面自己把图都加载出来，再用筛选把图标、骨架屏、占位图清掉，最后预览并整批下载。
+        </p>
+
+        <nav class="guide-toc">
+          <p>本文内容</p>
+          <ol>
+            <li><a href="#why">为什么长列表页总是抓不全</a></li>
+            <li><a href="#scroll">第一步：让页面把图片都加载出来</a></li>
+            <li><a href="#filter">第二步：把图标、占位图筛掉</a></li>
+            <li><a href="#download">第三步：预览、勾选、批量下载</a></li>
+            <li><a href="#troubleshoot">还是抓不全？按这几条排查</a></li>
+          </ol>
+        </nav>
+
+        <h2 id="why">为什么长列表页总是抓不全</h2>
+        <p>
+          两个原因叠加在一起。一是<strong>懒加载</strong>：长列表页为了首屏速度，通常只为可视区域附近的图片创建
+          <code>img</code> 元素，其余位置留空，等滚动到附近再补上（这种做法的官方说明见
+          <a href="https://developer.mozilla.org/en-US/docs/Web/Performance/Lazy_loading" target="_blank" rel="noopener">MDN 的 Lazy loading 词条</a>）。
+          二是<strong>图片地址被脚本改写</strong>：有些站点先把占位图放进 <code>src</code>，再用脚本把真实地址填进去，
+          因此就算你手动保存网页，拿到的也可能只是一批灰色方块。
+        </p>
+        <p>
+          所以「抓全」的前提不是更用力地解析源码，而是<strong>让页面像人一样滚动一遍</strong>，
+          把该加载的资源都真实加载出来。图片一旦被加载，扩展就能从两条通道同时记录它。
+        </p>
+
+        <h2 id="scroll">第一步：让页面把图片都加载出来</h2>
+        <p>打开目标页面，点击工具栏上的扩展图标，确认弹窗顶部的开关处于「监听中」，然后：</p>
+        <ol class="guide-steps">
+          <li>点击弹窗右上角的「滚动抓取」按钮（向下箭头图标）。</li>
+          <li>扩展会自动把页面从顶部滚动到底部，滚动过程中新增的图片会实时进入列表；按钮处于激活状态时再次点击即可停止。</li>
+          <li>等页面到底后回到弹窗，观察列表条数是否已经稳定不再增长。</li>
+        </ol>
+        <p class="guide-note">
+          滚动抓取不会跳过站点自己的「加载更多」按钮，但它会把已经渲染出的内容都滚一遍。
+          如果你希望更彻底，可以先手动滚到底、点几次「加载更多」，再回来查看列表——捕获是持续进行的，
+          不需要提前打开弹窗。
+        </p>
+
+        <figure class="guide-figure">
+          <div class="guide-figure-slot">截图位：弹窗顶部工具栏与「滚动抓取」按钮（将插入本地截图文件）</div>
+          <figcaption>滚动抓取按钮位于弹窗右上角，与「按页面分组」「清空」并列。</figcaption>
+        </figure>
+
+        <h2 id="filter">第二步：把图标、占位图筛掉</h2>
+        <p>
+          长列表页滚一遍之后，列表里往往会混进站标、评分星、社交图标、骨架屏占位图。比起逐条删，
+          更省事的做法是用筛选面板一次性收窄（点弹窗里的漏斗图标展开）：
+        </p>
+        <ul>
+          <li><strong>最小大小</strong>：填 <code>10</code>（KB）就能过滤掉绝大多数图标。</li>
+          <li><strong>最小尺寸</strong>：填宽度 <code>400</code> 以上，可以同时挡掉图标与低分辨率缩略图。</li>
+          <li><strong>扩展名</strong>：只想要无损图时填 <code>jpg,png</code> 之类；不填表示不限。</li>
+          <li><strong>来源</strong>：切到「网络」通常能拿到列表页里预加载的大图原图；切到「页面」则只看当前页面元素实际引用的地址。</li>
+          <li><strong>搜索框</strong>：按文件名或域名关键词过滤，适合只挑某个 CDN 的图。</li>
+        </ul>
+        <p>
+          筛选只影响列表的显示与「全选」的范围，不会删除已捕获的记录：把条件改回去，条目就会重新出现。
+          列表顶部会实时显示「匹配」条数，配合这个数字就能判断筛选条件是否合适。
+        </p>
+
+        <h2 id="download">第三步：预览、勾选、批量下载</h2>
+        <ol class="guide-steps">
+          <li>点弹窗里的卡片视图按钮，可以用缩略图网格快速扫一遍结果；单张图点击后进入大图预览，支持左右切换。</li>
+          <li>不需要的条目可以单条移除，或者直接勾选你真正需要的那几十张。</li>
+          <li>点「下载选中」按当前勾选下载；点「全部下载」则按当前筛选结果整体下载。</li>
+          <li>扩展会自动决定传输方式：体积正常的批量走 ZIP 打包（在后台完成，关掉弹窗也不中断），
+            单文件超过 50MB 或整包预估超过 500MB 时自动改为逐条直接下载，避免大包卡住。</li>
+        </ol>
+        <p>
+          下载过程中可以在弹窗底部看到进度与每条的状态；下载的文件默认存放在「下载」目录下的
+          <code>OpenDownload</code> 子目录，目录名与并发数可以在 Options 页里改。
+        </p>
+
+        <figure class="guide-figure">
+          <div class="guide-figure-slot">截图位：筛选面板与「匹配」条数（将插入本地截图文件）</div>
+          <figcaption>筛选面板的每个条件都会实时反映到「匹配」条数上。</figcaption>
+        </figure>
+
+        <h2 id="troubleshoot">还是抓不全？按这几条排查</h2>
+        <ul>
+          <li><strong>列表里完全没有新条目</strong>：确认顶部开关是「监听中」，并检查当前站点是否被单独暂停（弹窗里的站点行会显示「已暂停」，点「恢复跟随」即可）。</li>
+          <li><strong>只有前几张，后面都没有</strong>：页面很可能需要在可视区域内停留才会加载下一批，重新执行一次滚动抓取，或手动慢速滚动一遍。</li>
+          <li><strong>拿到的是很小的图</strong>：站点可能对同一张图提供了缩略图与原图两个地址。试试把来源切到「网络」，或在卡片视图里比较尺寸后只留大的那条；相关做法见<a href="pick-highest-resolution.html">挑选最清晰版本</a>。</li>
+          <li><strong>图片存在但下载失败</strong>：需要登录态的图可能因为跨域限制无法打包，可在 Options 里开启「打包时携带 Cookie」后重试。</li>
+          <li><strong>数量很多、担心占空间</strong>：捕获记录上限为 5000 条，超出后自动保留最新的部分，弹窗里也会有容量提示。</li>
+        </ul>
+
+        <div class="guide-cta">
+          <h2>下一步</h2>
+          <p>图片抓全之后，如果这批资源里还有视频、或者总量到了几百 MB，接着看
+            <a href="large-video-batch.html">几百 MB 视频批量下载怎么不失败</a>；
+            想先装上扩展，见<a href="../index.html#install">安装说明</a>。</p>
+        </div>
+
+        <p class="guide-related">相关教程：</p>
+        <ul>
+          <li><a href="pick-highest-resolution.html">同一张图多个分辨率，怎么挑最清晰的</a></li>
+          <li><a href="large-video-batch.html">网页视频批量下载：几百 MB 也不失败</a></li>
+          <li><a href="index.html">全部教程总览</a></li>
+        </ul>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Open Download · MIT License · 数据仅存本地</p>
+      <p><a href="../index.html">首页</a> · <a href="index.html">教程</a> · <a href="../privacy.html">隐私政策</a> · <a href="../index.html#faq">FAQ</a> · <a href="https://chromewebstore.google.com/detail/EXTENSION_ID_PLACEHOLDER" target="_blank" rel="noopener">在商店评分</a></p>
+    </div>
+  </footer>
+</body>
+</html>

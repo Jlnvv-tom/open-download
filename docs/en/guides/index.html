@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batch Download Images &amp; Videos — Guides</title>
+  <meta name="description" content="Guides for batch downloading web images and videos: capture lazy-loaded galleries, handle large batches, and pick the highest-resolution version.">
+  <link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="../../index.html">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Open Download</span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html">Guides</a>
+        <a href="../../index.html#features">Features</a>
+        <a href="../../index.html#install">Install</a>
+        <a href="../../index.html#faq">FAQ</a>
+        <a class="nav-github" href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <article class="section guide">
+      <div class="container guide-inner">
+        <p class="guide-breadcrumb"><a href="../../index.html">Home</a> / Guides</p>
+        <h1>Batch Download Images and Videos: Guides</h1>
+        <p class="guide-lead">
+          Open Download captures the images and videos a page actually loads, lets you filter and preview them,
+          and saves the result either as a ZIP or as individual downloads. The step-by-step guides below cover the
+          three situations people run into most often: galleries that only load images as you scroll, batches that grow
+          into hundreds of megabytes, and the same photo appearing at several resolutions.
+        </p>
+
+        <p class="guide-note">
+          The detailed guides are currently available in Chinese. Full English guides are planned; until then, the
+          written steps below the links summarise the same workflows.
+        </p>
+
+        <div class="guide-grid">
+          <a class="guide-card" href="../../guides/batch-download-images.html">
+            <h3>Capture a lazy-loaded gallery</h3>
+            <p>Let the page load every image by scrolling for you, then filter out icons and placeholders. (中文教程)</p>
+          </a>
+          <a class="guide-card" href="../../guides/large-video-batch.html">
+            <h3>Download hundreds of megabytes without failing</h3>
+            <p>Why large batches break a ZIP, and how the 50MB / 500MB thresholds switch to individual downloads. (中文教程)</p>
+          </a>
+          <a class="guide-card" href="../../guides/pick-highest-resolution.html">
+            <h3>Pick the highest-resolution version</h3>
+            <p>Sort by sharpness and merge similar images so only the sharpest copy of each photo stays. (中文教程)</p>
+          </a>
+        </div>
+
+        <h2>The workflow behind all three guides</h2>
+        <ol class="guide-steps">
+          <li>Click the toolbar icon and make sure the switch at the top reads "Listening".</li>
+          <li>Browse the page normally, or use scroll capture on a long list so the page loads its own images.</li>
+          <li>Narrow the list in the filter panel: file size, minimum dimensions, source (network / page), extensions, keywords.</li>
+          <li>Select what you need and hit Download selected, or Download all to let the extension choose ZIP or individual downloads.</li>
+        </ol>
+
+        <p>
+          Everything is stored in your browser's local <code>chrome.storage.local</code>. There is no server,
+          no account, and no telemetry — see the
+          <a href="../../privacy.html">privacy policy</a> (in Chinese) for the full statement, and the
+          <a href="https://developer.chrome.com/docs/extensions/reference/api/downloads" target="_blank" rel="noopener">Chrome downloads API documentation</a>
+          for the browser capability used to save files.
+        </p>
+
+        <div class="guide-cta">
+          <h2>Install first</h2>
+          <p>Every step above works in the shipped extension. See the
+            <a href="../../index.html#install">installation instructions</a> or browse the source on
+            <a href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub</a>.</p>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Open Download · MIT License · All data stays local</p>
+      <p><a href="../../index.html">Home</a> · <a href="index.html">Guides</a> · <a href="../../privacy.html">Privacy</a> · <a href="../../index.html#faq">FAQ</a> · <a href="https://chromewebstore.google.com/detail/EXTENSION_ID_PLACEHOLDER" target="_blank" rel="noopener">Rate on the store</a></p>
+    </div>
+  </footer>
+</body>
+</html>

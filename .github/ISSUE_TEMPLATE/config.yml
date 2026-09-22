@@ -1,0 +1,13 @@
+# Issue 入口分流（V16-05）
+# 强制使用表单模板：纯文字的自由格式反馈很难定位问题，尤其是站点规则失效这类场景
+blank_issues_enabled: false
+contact_links:
+  - name: 使用教程与文档
+    url: https://wujihuan.github.io/open-download/guides/
+    about: 长列表页抓全、大文件批量下载、挑选最清晰版本的做法都在这里
+  - name: 隐私政策与权限说明
+    url: https://wujihuan.github.io/open-download/privacy.html
+    about: 数据只保存在本地；扩展没有服务器，也没有任何统计上报
+  - name: 安装方式与源码
+    url: https://github.com/wujihuan/open-download#readme
+    about: 加载已解压的扩展程序、Releases 安装包、构建与测试命令

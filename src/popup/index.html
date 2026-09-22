@@ -129,6 +129,20 @@
         </div>
       </div>
       <div class="filter-row">
+        <label data-i18n="filterSortBy"></label>
+        <div class="source-control" id="sort-control">
+          <button class="source-option active" data-sort="capturedAt" data-i18n="sortCapturedAt"></button>
+          <button class="source-option" data-sort="sharpness" data-i18n="sortSharpness"></button>
+        </div>
+      </div>
+      <div class="filter-row checkbox-row">
+        <label>
+          <input type="checkbox" id="merge-similar">
+          <span data-i18n="filterMergeSimilar"></span>
+        </label>
+        <small id="merge-similar-hint" data-i18n="filterMergeSimilarHint"></small>
+      </div>
+      <div class="filter-row">
         <label data-i18n="filterMinSize"></label>
         <input type="number" id="filter-min-size" placeholder="0" min="0">
       </div>
@@ -177,6 +191,15 @@
     <div class="site-row" id="site-row" hidden>
       <span class="site-info" id="site-info"></span>
       <button class="site-action" id="btn-site-toggle" type="button"></button>
+    </div>
+
+    <!-- 评分提示条：累计成功下载达阈值后只出现一次（V16-05） -->
+    <div class="site-row rating-row" id="rating-row" hidden>
+      <span class="site-info" data-i18n="ratingPrompt"></span>
+      <span class="site-row-actions">
+        <button class="site-action rating-open" id="btn-rating-open" type="button" data-i18n="ratingAction"></button>
+        <button class="site-action" id="btn-rating-close" type="button" data-i18n-title="ratingDismiss" aria-label="x">×</button>
+      </span>
     </div>
 
     <!-- Status indicator -->

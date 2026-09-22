@@ -8,6 +8,7 @@ import {
   MESSAGE_TYPES,
   VIDEO_FORMAT_TABS
 } from '../lib/constants.js';
+import { groupBySimilarity } from '../lib/image-hash.js';
 import { extractDomain, formatDuration, formatSize, getNormalizedExtension } from '../lib/utils.js';
 import { applyI18n, t } from '../lib/i18n.js';
 
@@ -22,6 +23,9 @@ const el = {
   siteRow: $('#site-row'),
   siteInfo: $('#site-info'),
   btnSiteToggle: $('#btn-site-toggle'),
+  ratingRow: $('#rating-row'),
+  btnRatingOpen: $('#btn-rating-open'),
+  btnRatingClose: $('#btn-rating-close'),
   capacityHint: $('#capacity-hint'),
   statTotal: $('#stat-total'),
   statDownloaded: $('#stat-downloaded'),
@@ -39,6 +43,9 @@ const el = {
   btnClear: $('#btn-clear'),
   filterPanel: $('#filter-panel'),
   sourceFilter: $('#source-filter'),
+  sortControl: $('#sort-control'),
+  mergeSimilar: $('#merge-similar'),
+  mergeSimilarHint: $('#merge-similar-hint'),
   filterMinSize: $('#filter-min-size'),
   filterMinWidth: $('#filter-min-width'),
   filterMinHeight: $('#filter-min-height'),
@@ -72,8 +79,18 @@ let sourceFilter = 'all';
 let siteRules = {};
 let currentDomain = '';
 let scrollRunning = false;
+// 内容级筛选（V16-03）
+let mergeSimilar = false;
+let sortBy = 'capturedAt';
+let metricsRunning = false;
+let metricsDone = 0;
+let metricsTotal = 0;
 // 折叠状态为内存态，不持久化
 const collapsedGroups = new Set();
+// 相似组默认只显示最清晰的一张，展开过的组记在这里（与页面分组的默认展开语义相反，故分开存）
+const expandedGroups = new Set();
+// 累计成功下载数达到该值后才考虑展示一次评分引导（V16-05）
+const RATING_PROMPT_THRESHOLD = 20;
 const DEFAULT_CONTENT_SIZE = 104;
 let contentSize = DEFAULT_CONTENT_SIZE;
 const EAGER_PREVIEW_COUNT = 36;
@@ -121,6 +138,9 @@ async function init() {
     viewMode = settings.ui?.viewMode || 'list';
     groupByPage = Boolean(settings.ui?.groupByPage);
     sourceFilter = settings.ui?.sourceFilter || 'all';
+    mergeSimilar = Boolean(settings.ui?.mergeSimilar);
+    sortBy = settings.ui?.sortBy === 'sharpness' ? 'sharpness' : 'capturedAt';
+    el.mergeSimilar.checked = mergeSimilar;
     siteRules = settings.siteRules || {};
     const savedContentSize = settings.ui?.contentSize;
     contentSize = savedContentSize === undefined || savedContentSize === 132
@@ -138,7 +158,11 @@ async function init() {
     updateStatusUI(status.enabled);
     updateStats(status.stats);
     updateCapacityHint(status);
+    maybeShowRatingPrompt(status.stats);
   }
+
+  // 打开弹窗即视为「已查看」，清空扩展图标角标
+  await sendMessage(MESSAGE_TYPES.MARK_CAPTURED_READ);
 
   await loadCurrentSite();
   await loadMedia();
@@ -226,6 +250,28 @@ function bindEvents() {
     renderMedia();
   });
 
+  el.sortControl.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-sort]');
+    if (!button) return;
+    sortBy = button.dataset.sort;
+    await saveUiSettings();
+    renderMedia();
+    // 清晰度排序需要分数：缺失时才触发分析，完成后再由 PHASH_STATE 拉回并重渲
+    if (sortBy === 'sharpness') requestContentMetrics();
+  });
+
+  el.mergeSimilar.addEventListener('change', async () => {
+    mergeSimilar = el.mergeSimilar.checked;
+
+    // 两套分组语义互斥：相似归并优先，按页面分组置为不可用（按钮 title 里说明，不静默切换）
+    if (mergeSimilar) groupByPage = false;
+    expandedGroups.clear();
+
+    await saveUiSettings();
+    renderMedia();
+    if (mergeSimilar) requestContentMetrics();
+  });
+
   el.btnGroup.addEventListener('click', async () => {
     groupByPage = !groupByPage;
     await saveUiSettings();
@@ -245,6 +291,9 @@ function bindEvents() {
       setScrollRunning(true);
     }
   });
+
+  el.btnRatingOpen.addEventListener('click', openStorePage);
+  el.btnRatingClose.addEventListener('click', dismissRatingPrompt);
 
   el.btnSiteToggle.addEventListener('click', async () => {
     if (!currentDomain) return;
@@ -280,6 +329,7 @@ function bindEvents() {
     allMedia = [];
     selectedIds.clear();
     collapsedGroups.clear();
+    expandedGroups.clear();
     closeLightbox();
     renderMedia();
     updateStats({ total: 0, downloaded: 0, failed: 0 });
@@ -333,6 +383,13 @@ function bindEvents() {
 
   // 列表容器事件委托：渲染替换 innerHTML 后监听依然有效
   el.imageList.addEventListener('click', (event) => {
+    // 相似组头：展开/收起到「只看最清晰」
+    const similarHeader = event.target.closest('[data-similar]');
+    if (similarHeader) {
+      toggleSimilarGroup(similarHeader);
+      return;
+    }
+
     // 分组头：切换组内容折叠（组头不是条目的祖先，先于 data-id 判定）
     const groupHeader = event.target.closest('[data-group]');
     if (groupHeader) {
@@ -418,6 +475,15 @@ function bindEvents() {
     if (message.type === MESSAGE_TYPES.SCROLL_CAPTURE_STATE) {
       setScrollRunning(Boolean(message.payload?.running));
     }
+    if (message.type === MESSAGE_TYPES.PHASH_STATE) {
+      // 只负责进度反馈：数据回填统一由发起方在请求结束时 loadMedia() 完成，
+      // 避免「广播重渲 + 请求返回重渲」两份渲染
+      const { running, done = 0, total = 0 } = message.payload || {};
+      metricsRunning = Boolean(running);
+      metricsDone = done;
+      metricsTotal = total;
+      updateMetricsHint();
+    }
   });
 }
 
@@ -460,6 +526,8 @@ function saveUiSettings() {
         contentSize,
         groupByPage,
         sourceFilter,
+        mergeSimilar,
+        sortBy,
       },
     },
   });
@@ -600,6 +668,12 @@ function formatDownloadSummary(result) {
 
   if (result.strategy === 'direct') {
     parts.push(t('summaryDirect'));
+  } else if (result.strategy === 'mixed') {
+    // 混合批次：分别报数，避免用户以为「点一次下载却只拿到散文件」
+    parts.push(t('summaryVideoDirect', result.directSucceeded || 0));
+    if (result.volumes?.length > 1) {
+      parts.push(t('summaryVolumes', result.volumes.length));
+    }
   } else if (result.volumes?.length > 1) {
     parts.push(t('summaryVolumes', result.volumes.length));
   }
@@ -628,6 +702,7 @@ function renderMedia() {
   updateViewButtons();
   updateGroupButton();
   updateSourceFilterUI();
+  updateSortControlUI();
   updateSelectionButton(filtered);
   updateStats({
     total: allMedia.length,
@@ -644,11 +719,30 @@ function renderMedia() {
 
   if (viewMode === 'card') {
     renderCardView(filtered);
+  } else if (mergeSimilar) {
+    renderSimilarListView(filtered);
   } else if (groupByPage) {
     renderGroupedListView(filtered);
   } else {
     renderListView(filtered);
   }
+}
+
+/**
+ * 列表展示顺序
+ * 默认按捕获时间倒序（存储是升序追加，反转即最新在前）；
+ * 选清晰度时按分数降序，同分（多为未分析）回落到捕获时间，避免顺序随机
+ */
+function sortForDisplay(mediaItems) {
+  const items = [...mediaItems];
+
+  if (sortBy === 'sharpness') {
+    return items.sort((a, b) => (
+      (b.sharpness || 0) - (a.sharpness || 0) || (b.capturedAt || 0) - (a.capturedAt || 0)
+    ));
+  }
+
+  return items.reverse();
 }
 
 function renderMediaTabs() {
@@ -679,13 +773,13 @@ function renderFormatTabs() {
 }
 
 function renderListView(mediaItems) {
-  el.imageList.innerHTML = [...mediaItems].reverse()
+  el.imageList.innerHTML = sortForDisplay(mediaItems)
     .map((media, index) => listItemTemplate(media, index))
     .join('');
 }
 
 function renderCardView(mediaItems) {
-  el.imageList.innerHTML = [...mediaItems].reverse()
+  el.imageList.innerHTML = sortForDisplay(mediaItems)
     .map((media, index) => cardTemplate(media, index))
     .join('');
 }
@@ -697,7 +791,7 @@ function renderCardView(mediaItems) {
 function renderGroupedListView(mediaItems) {
   const groups = new Map();
 
-  [...mediaItems].reverse().forEach(media => {
+  sortForDisplay(mediaItems).forEach(media => {
     const key = media.tabUrl || '';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(media);
@@ -747,6 +841,91 @@ function toggleGroupCollapse(groupHeader) {
   if (body) body.hidden = collapsed;
   const arrow = groupHeader.querySelector('.group-arrow');
   if (arrow) arrow.textContent = collapsed ? '▸' : '▾';
+}
+
+/**
+ * 相似图归并视图（V16-03）
+ * 组内按清晰度降序、默认只展示最清晰的一张，点组头展开看全部；
+ * 无法比较（phash 为空，多为未分析或计算失败）的条目各自成组，按普通条目平铺
+ */
+function renderSimilarListView(mediaItems) {
+  const groups = groupBySimilarity(sortForDisplay(mediaItems));
+
+  el.imageList.innerHTML = groups.map(group => {
+    if (group.items.length === 1) {
+      return listItemTemplate(group.items[0], 0);
+    }
+
+    const expanded = expandedGroups.has(group.key);
+    const visible = expanded ? group.items : group.items.slice(0, 1);
+
+    return `
+      <div class="list-group">
+        <div class="list-group-header similar-header" data-similar="${escapeAttr(group.key)}" title="${escapeAttr(t(expanded ? 'tooltipCollapseSimilar' : 'tooltipExpandSimilar'))}">
+          <span class="group-arrow">${expanded ? '▾' : '▸'}</span>
+          <span class="group-title">${escapeHtml(t('groupSimilarCount', group.items.length))}</span>
+        </div>
+        <div class="list-group-body">
+          ${visible.map((media, index) => listItemTemplate(media, index)).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleSimilarGroup(header) {
+  const key = header.dataset.similar || '';
+
+  if (expandedGroups.has(key)) {
+    expandedGroups.delete(key);
+  } else {
+    expandedGroups.add(key);
+  }
+
+  // 组的构成与顺序都不变，只有组内可见条数变化；整体重渲比局部插删更不容易出错
+  renderMedia();
+}
+
+/**
+ * 请求补齐缺失的内容级指标（V16-03）
+ * 只在需要时触发（开启相似归并 / 切到清晰度排序），不在捕获期计算；
+ * 仅针对图片——视频需要解码帧，本期不纳入
+ */
+async function requestContentMetrics() {
+  if (metricsRunning) return;
+
+  const targets = allMedia.filter(media => media.mediaType === MEDIA_TYPES.IMAGE && !media.phash);
+  if (targets.length === 0) return;
+
+  metricsRunning = true;
+  metricsDone = 0;
+  metricsTotal = targets.length;
+  updateMetricsHint();
+
+  const res = await sendMessage(MESSAGE_TYPES.PHASH_REQUEST, {
+    ids: targets.map(media => media.id),
+  });
+
+  metricsRunning = false;
+  updateMetricsHint();
+
+  if (!res.success) {
+    alert(res.error || t('errorNothingToAnalyze'));
+    return;
+  }
+
+  // 指标已写回 store，重新拉取后再渲染，保证列表用的是一份一致数据
+  await loadMedia();
+
+  if (res.failed > 0) {
+    alert(t('mergeSimilarSummary', res.analyzed, res.failed));
+  }
+}
+
+function updateMetricsHint() {
+  el.mergeSimilarHint.textContent = metricsRunning
+    ? t('mergeSimilarProgress', metricsDone, metricsTotal)
+    : t('filterMergeSimilarHint');
 }
 
 // ─── 条目模板（全量渲染与增量插入共用） ────────────────
@@ -945,8 +1124,9 @@ function handleMediaFound(media) {
     return;
   }
 
-  // 分组模式下组序需重排，放弃增量插入直接全量重渲
-  if (groupByPage && viewMode === 'list') {
+  // 列表视图的分组/相似归并，以及任何视图下的清晰度排序（新条目可能插到中间），
+  // 都无法靠「插到最前」得到正确顺序，直接全量重渲
+  if (sortBy === 'sharpness' || (viewMode === 'list' && (groupByPage || mergeSimilar))) {
     renderMedia();
     return;
   }
@@ -1081,6 +1261,35 @@ function updateSiteRow() {
   el.btnSiteToggle.textContent = blocked ? t('siteResumeAction') : t('sitePauseAction');
 }
 
+/**
+ * 评分引导（V16-05）：累计成功下载数首次达到阈值时展示一次
+ * 弹窗是高频工具，每次打开都请求评分会直接损伤体验，因此只在写盘前出现一次
+ */
+function maybeShowRatingPrompt(stats = {}) {
+  // 设置没读到就不弹：宁可漏弹一次，也不要重复打扰
+  if (!settings || settings.ui?.ratingPromptShown) return;
+  if ((stats.downloaded || 0) < RATING_PROMPT_THRESHOLD) return;
+
+  el.ratingRow.hidden = false;
+}
+
+function dismissRatingPrompt() {
+  el.ratingRow.hidden = true;
+  // 关闭与点击「去评分」都写入同一标记，此后永不再现
+  sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, {
+    settings: { ui: { ratingPromptShown: true } },
+  });
+}
+
+function openStorePage() {
+  // 商店详情页只需扩展自身 id，避免硬编码占位 id
+  // （开发态以「加载已解压」安装时 id 是随机值，打开会是 404，属预期）
+  chrome.tabs.create({
+    url: `https://chromewebstore.google.com/detail/${chrome.runtime.id}`,
+  });
+  dismissRatingPrompt();
+}
+
 function setScrollRunning(running) {
   scrollRunning = running;
   el.btnScroll.classList.toggle('active', running);
@@ -1088,13 +1297,23 @@ function setScrollRunning(running) {
 }
 
 function updateGroupButton() {
-  el.btnGroup.classList.toggle('active', groupByPage);
-  el.btnGroup.title = groupByPage ? t('tooltipUngroupByPage') : t('tooltipGroupByPage');
+  // 相似归并与按页面分组互斥：置灰而不是静默把用户的选择改掉
+  el.btnGroup.disabled = mergeSimilar;
+  el.btnGroup.classList.toggle('active', groupByPage && !mergeSimilar);
+  el.btnGroup.title = mergeSimilar
+    ? t('tooltipGroupDisabledByMerge')
+    : (groupByPage ? t('tooltipUngroupByPage') : t('tooltipGroupByPage'));
 }
 
 function updateSourceFilterUI() {
   el.sourceFilter.querySelectorAll('[data-source]').forEach(button => {
     button.classList.toggle('active', button.dataset.source === sourceFilter);
+  });
+}
+
+function updateSortControlUI() {
+  el.sortControl.querySelectorAll('[data-sort]').forEach(button => {
+    button.classList.toggle('active', button.dataset.sort === sortBy);
   });
 }
 

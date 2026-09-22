@@ -6,6 +6,8 @@ import { store } from '../lib/store.js';
 import { DownloadManager, waitForDownload } from '../lib/downloader.js';
 import { makeZipFilename } from '../lib/zip.js';
 import { t } from '../lib/i18n.js';
+import { buildExtractPlan, matchSiteRule } from '../lib/site-rules/engine.js';
+import { SITE_RULES } from '../lib/site-rules/registry.js';
 import {
   detectMediaType,
   extensionFromMimeType,
@@ -50,6 +52,53 @@ downloader.on((event, data) => {
     // popup 可能未打开，忽略错误
   });
 });
+
+// ─── 扩展图标角标（V16-04） ────────────────────────────
+
+const BADGE_MAX = 999;
+const BADGE_BACKGROUND = '#3b82f6'; // 与 popup 的 --primary 保持一致
+
+let badgeStyleReady = false;
+
+function ensureBadgeStyle() {
+  if (badgeStyleReady || !chrome.action?.setBadgeBackgroundColor) return;
+  badgeStyleReady = true;
+  chrome.action.setBadgeBackgroundColor({ color: BADGE_BACKGROUND }).catch(() => {});
+}
+
+/**
+ * 渲染未读角标
+ * 角标是浏览器侧状态、不随 SW 休眠消失，但 SW 重启/扩展重载后需要按持久化值重渲染一次
+ * @param {number} unread - 自上次打开弹窗以来的新增捕获数
+ */
+function renderBadge(unread) {
+  if (!chrome.action?.setBadgeText) return;
+
+  const count = Number(unread) || 0;
+  const text = count <= 0 ? '' : (count > BADGE_MAX ? `${BADGE_MAX}+` : String(count));
+
+  ensureBadgeStyle();
+  // 角标失败绝不能影响捕获主链路
+  chrome.action.setBadgeText({ text }).catch(() => {});
+}
+
+/**
+ * 切换全局监听开关（右键菜单与全局快捷键共用）
+ * @returns {Promise<boolean>} 切换后的状态
+ */
+async function toggleListening() {
+  const settings = store.getSettings();
+  const enabled = !settings.enabled;
+  await store.saveSettings({ enabled });
+
+  // 通知 popup 更新状态
+  chrome.runtime.sendMessage({
+    type: MESSAGE_TYPES.TOGGLE_LISTENING,
+    payload: { enabled },
+  }).catch(() => {});
+
+  return enabled;
+}
 
 // ─── 网络请求监听 ──────────────────────────────────────
 
@@ -156,6 +205,8 @@ async function onRequestCompleted(details) {
     }).catch(() => {
       // popup 可能未打开，忽略错误
     });
+
+    renderBadge(store.getStats().unread);
 
     // 自动下载
     if (settings.autoDownload) {
@@ -281,23 +332,68 @@ function splitVolumes(items, sizes, limits) {
 
 /**
  * 决定批量下载策略（导出供单测）
- * 单文件超阈值或整批预估超阈值 → 逐条直下；否则 ZIP 打包并按卷上限切分
+ *
+ * 两个维度共同决定产物：
+ * 1. 媒体类型（V16-02）：`transfer.videoDirect` 开启时视频单独走逐条直下；
+ * 2. 体积阈值（V15-01）：非视频条目里单文件超阈值、或整批预估超阈值 → 这批也改直下，
+ *    否则按 `maxZipFiles` / `maxZipBytes` 分卷打包。
+ *
+ * 只有一种产物时收敛为 `direct` / `zip`；两种产物并存才返回 `mixed`，
+ * 便于 UI 分开报数而不是给用户一个含糊的「成功 N 个」。
+ *
  * @param {Object[]} items - 媒体记录
  * @param {Object} settings - 完整设置对象
- * @returns {{strategy: 'direct'|'zip', reason: string, volumes: Object[][]}}
+ * @returns {{strategy: 'direct'|'zip'|'mixed', reason: string, volumes: Object[][], directItems: Object[]}}
  */
 function planTransfer(items = [], settings = {}) {
+  if (items.length === 0) {
+    return { strategy: 'zip', reason: '', volumes: [], directItems: [] };
+  }
+
   const limits = { ...DEFAULT_SETTINGS.transfer, ...(settings.transfer || {}) };
-  const sizes = items.map(item => estimateSize(item, limits));
 
-  if (sizes.some(size => size > limits.bypassFileSize)) {
-    return { strategy: 'direct', reason: 'large-file', volumes: [] };
-  }
-  if (sizes.reduce((sum, size) => sum + size, 0) > limits.bypassBatchSize) {
-    return { strategy: 'direct', reason: 'large-batch', volumes: [] };
+  // 1. 按媒体类型分流
+  const videos = [];
+  const others = [];
+  for (const item of items) {
+    if (limits.videoDirect && item?.mediaType === MEDIA_TYPES.VIDEO) {
+      videos.push(item);
+    } else {
+      others.push(item);
+    }
   }
 
-  return { strategy: 'zip', reason: '', volumes: splitVolumes(items, sizes, limits) };
+  // 2. 非视频条目沿用 v1.5 的阈值判定
+  const sizes = others.map(item => estimateSize(item, limits));
+  const totalBytes = sizes.reduce((sum, size) => sum + size, 0);
+  const oversized = sizes.some(size => size > limits.bypassFileSize);
+  const largeReason = oversized ? 'large-file' : 'large-batch';
+
+  const directItems = [...videos];
+  let volumes = [];
+
+  if (others.length > 0) {
+    if (oversized || totalBytes > limits.bypassBatchSize) {
+      directItems.push(...others);
+    } else {
+      volumes = splitVolumes(others, sizes, limits);
+    }
+  }
+
+  // 3. 收敛结论
+  if (volumes.length === 0) {
+    // 整批直下：reason 说明触发原因（视频拆分 / 大文件 / 大批量）
+    const reason = videos.length > 0 && directItems.length === videos.length
+      ? 'video'
+      : largeReason;
+    return { strategy: 'direct', reason, volumes: [], directItems };
+  }
+
+  if (directItems.length === 0) {
+    return { strategy: 'zip', reason: '', volumes, directItems: [] };
+  }
+
+  return { strategy: 'mixed', reason: 'video', volumes, directItems };
 }
 
 /**
@@ -434,8 +530,10 @@ async function buildZipVolume(items, settings, { volume, volumes }) {
 
 /**
  * ZIP 分卷打包：逐卷串行（offscreen 同一时刻只有一个打包任务）
+ * @param {Object} settings - 完整设置对象
+ * @param {Object[][]} volumes - 已切分好的卷
  */
-async function handleZipDownload(items, settings, volumes) {
+async function handleZipDownload(settings, volumes) {
   let succeeded = 0;
   let failed = 0;
   const failures = [];
@@ -463,7 +561,29 @@ async function handleZipDownload(items, settings, volumes) {
 }
 
 /**
- * 批量下载入口：按 planTransfer 结果选择逐条直下或 ZIP 分卷
+ * 混合批次：视频逐条直下 + 其余条目打包（V16-02）
+ * 先直下后打包——直下部分通常是用户等着看的结果，而分卷打包耗时最长；
+ * 两条路径互不阻断，任一失败仍继续另一条，最后合并计数
+ * @returns {Promise<{succeeded, failed, strategy, volumes, directSucceeded, failedItems}>}
+ */
+async function handleMixedDownload(plan, settings) {
+  const directResult = await handleDirectDownload(plan.directItems, settings);
+  const zipResult = await handleZipDownload(settings, plan.volumes);
+
+  return {
+    succeeded: directResult.succeeded + zipResult.succeeded,
+    failed: directResult.failed + zipResult.failed,
+    strategy: 'mixed',
+    volumes: zipResult.volumes,
+    // 供 UI 分开报数（「视频 N 个已逐条下载，图片打包为 M 卷」）
+    directSucceeded: directResult.succeeded,
+    failedItems: [...directResult.failedItems, ...zipResult.failedItems]
+      .slice(0, FAILURE_SUMMARY_LIMIT),
+  };
+}
+
+/**
+ * 批量下载入口：按 planTransfer 结果选择逐条直下、ZIP 分卷或两者的混合
  * @param {Object} payload - { ids: string[], strategy?: 'auto'|'zip'|'direct' }
  * @returns {Promise<{succeeded, failed, strategy, volumes, failedItems}>}
  */
@@ -494,12 +614,174 @@ async function handleDownloadZip(payload) {
 
   batchInProgress = true;
   try {
-    return plan.strategy === 'direct'
-      ? await handleDirectDownload(items, settings)
-      : await handleZipDownload(items, settings, plan.volumes);
+    if (plan.strategy === 'direct') {
+      // directItems 覆盖全部条目（要么全是视频，要么超阈值整批直下），缺省时退回整批
+      return await handleDirectDownload(plan.directItems?.length ? plan.directItems : items, settings);
+    }
+    if (plan.strategy === 'mixed') {
+      return await handleMixedDownload(plan, settings);
+    }
+    return await handleZipDownload(settings, plan.volumes);
   } finally {
     batchInProgress = false;
   }
+}
+
+// ─── 内容级图像指标（V16-03） ──────────────────────────
+
+// 计算通道整体超时：超时按已拿到的部分结果收尾，不回滚
+// （已写入的指标本身就是有效数据，丢弃重算的代价更大）
+const PHASH_TIMEOUT = 180000;
+let phashRun = null;
+
+/**
+ * 广播分析进度/结果给 popup
+ * running 由 phashRun 是否存在推导，避免两处状态各写一半
+ */
+function broadcastPhashState(extra = {}) {
+  chrome.runtime.sendMessage({
+    type: MESSAGE_TYPES.PHASH_STATE,
+    payload: {
+      running: Boolean(phashRun),
+      done: phashRun ? phashRun.done : 0,
+      total: phashRun ? phashRun.total : 0,
+      ...extra,
+    },
+  }).catch(() => {});
+}
+
+/**
+ * 处理 offscreen 逐条回传的指标结果
+ * 每条都立刻写回 store 并转发进度：popup 不必等全部完成才有反馈，
+ * 中途失败或超时也不会丢掉已完成的部分
+ */
+function handlePhashResult(payload = {}) {
+  if (!phashRun) return;
+
+  const { id, phash, sharpness, error } = payload;
+
+  if (error) {
+    phashRun.failed++;
+  } else if (id) {
+    store.updateMediaMetrics(id, { phash, sharpness });
+  }
+
+  phashRun.done++;
+  broadcastPhashState({ running: true });
+
+  if (phashRun.done >= phashRun.total) {
+    phashRun.settle({ done: phashRun.done, failed: phashRun.failed });
+  }
+}
+
+/**
+ * 请求计算缺失的内容级指标（按需触发，不在捕获期计算）
+ * 只接受图片：视频要先解码帧，本期不纳入（其 sharpness 保持 0，
+ * 排序时自然回落到捕获时间，不会打乱视频列表）
+ *
+ * @param {Object} payload - { ids: string[] }
+ * @returns {Promise<{total, analyzed, failed, timedOut}>}
+ */
+async function handlePhashRequest(payload) {
+  await store.init();
+  if (phashRun) throw new Error(t('errorPhashInProgress'));
+
+  const ids = payload?.ids || [];
+  const items = ids
+    .map(id => store.getImageById(id))
+    .filter(item => item && item.mediaType === MEDIA_TYPES.IMAGE);
+  if (items.length === 0) throw new Error(t('errorNothingToAnalyze'));
+
+  const settings = store.getSettings();
+  await ensureOffscreenDocument();
+  await waitForOffscreenReady();
+
+  const summary = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (phashRun) {
+        const run = phashRun;
+        phashRun = null;
+        resolve({ done: run.done, failed: run.failed, timedOut: true });
+      }
+    }, PHASH_TIMEOUT);
+
+    phashRun = {
+      total: items.length,
+      done: 0,
+      failed: 0,
+      settle: extra => {
+        clearTimeout(timer);
+        phashRun = null;
+        resolve(extra);
+      },
+      reject: error => {
+        clearTimeout(timer);
+        phashRun = null;
+        reject(error);
+      },
+    };
+
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.PHASH_REQUEST,
+      payload: {
+        items: items.map(item => ({ id: item.id, url: item.url })),
+        sendCookies: Boolean(settings.sendCookies),
+      },
+    }).catch(error => {
+      if (phashRun) phashRun.reject(error);
+    });
+  });
+
+  // 指标已写回 store，offscreen 无需留存（与 ZIP 的 blob URL 不同）
+  await closeOffscreenDocument().catch(() => {});
+  broadcastPhashState({
+    running: false,
+    done: summary.done,
+    failed: summary.failed,
+    total: items.length,
+    timedOut: Boolean(summary.timedOut),
+  });
+
+  return {
+    total: items.length,
+    analyzed: summary.done - summary.failed,
+    failed: summary.failed,
+    timedOut: Boolean(summary.timedOut),
+  };
+}
+
+// ─── 站点适配器（V16-01） ──────────────────────────────
+
+// 规则零命中的告警按页面 URL 去重，避免同一页面反复扫描刷屏
+const ruleMissWarnedUrls = new Set();
+const RULE_MISS_WARN_CACHE_LIMIT = 200;
+
+function warnRuleMissOnce(pageUrl, ruleId) {
+  if (!pageUrl || ruleMissWarnedUrls.has(pageUrl)) return;
+
+  if (ruleMissWarnedUrls.size >= RULE_MISS_WARN_CACHE_LIMIT) {
+    ruleMissWarnedUrls.clear();
+  }
+  ruleMissWarnedUrls.add(pageUrl);
+
+  // 仅开发者可见的诊断信息：规则可能已随站点改版失效，需要修规则而不是打扰用户
+  console.warn(
+    `[OpenDownload] 站点规则 ${ruleId || 'unknown'} 在本页零命中，已退回通用兜底：${pageUrl}`
+  );
+}
+
+/**
+ * 为页面解析站点规则并编译为可序列化的提取计划
+ * content script 是 classic script 无法 import，因此规则匹配统一在这里完成
+ * @param {{pageUrl?: string, pageDomain?: string}} payload - 页面上下文
+ * @returns {{ruleId: string}|null} 提取计划，无规则命中返回 null
+ */
+function resolveSitePlan(payload = {}) {
+  const rule = matchSiteRule(
+    { pageUrl: payload.pageUrl || '', pageDomain: payload.pageDomain || '' },
+    SITE_RULES
+  );
+  return rule ? buildExtractPlan(rule) : null;
 }
 
 // ─── DOM 兜底捕获（content script 扫描结果入库） ───────
@@ -507,7 +789,7 @@ async function handleDownloadZip(payload) {
 /**
  * 处理 content script 上报的页面媒体元素：
  * 已存在记录只富化尺寸/时长/封面；webRequest 漏捕的资源兜底入库（source='dom'）。
- * @param {Object} payload - { pageUrl, pageDomain, pageTitle, images: [], videos: [] }
+ * @param {Object} payload - { pageUrl, pageDomain, pageTitle, images: [], videos: [], ruleId, ruleMiss }
  * @returns {Promise<{added: number, updated: number}>}
  */
 async function handleDomMediaUpdate(payload) {
@@ -517,6 +799,11 @@ async function handleDomMediaUpdate(payload) {
   // 生效判定：全局开关 + 站点规则（与 webRequest 链路同一函数）
   if (!isCaptureAllowed(settings, payload?.pageDomain || '')) {
     return { added: 0, updated: 0 };
+  }
+
+  // 规则零命中说明站点结构可能已变，留一条诊断线索（按页面去重；关闭捕获时不产生噪音）
+  if (payload?.ruleMiss) {
+    warnRuleMissOnce(payload.pageUrl || '', payload.ruleId || '');
   }
 
   const pageUrl = payload?.pageUrl || '';
@@ -593,6 +880,10 @@ async function handleDomMediaUpdate(payload) {
     }
   }
 
+  if (added > 0) {
+    renderBadge(store.getStats().unread);
+  }
+
   if (enriched > 0) {
     chrome.runtime.sendMessage({
       type: MESSAGE_TYPES.MEDIA_DETAILS_UPDATED,
@@ -661,17 +952,22 @@ function handleRuntimeMessage(message, sender, sendResponse) {
 
         case MESSAGE_TYPES.CLEAR_IMAGES: {
           store.clearAll();
+          // 清空列表同时清空角标，避免残留一个已不存在的数字
+          renderBadge(0);
           sendResponse({ success: true });
           break;
         }
 
-        case MESSAGE_TYPES.DOWNLOAD_SELECTED: {
-          // 显式批量直下入口：收敛到统一编排，避免与 DOWNLOAD_ZIP 各写一套直下逻辑
-          // 当前 popup 未使用（V15-01 的旁路判定由 DOWNLOAD_ZIP 内部完成），预留给 V16-02
-          const result = await handleDownloadZip({ ...(message.payload || {}), strategy: 'direct' });
-          sendResponse({ success: true, ...result });
+        case MESSAGE_TYPES.MARK_CAPTURED_READ: {
+          await store.init();
+          store.markCapturedRead();
+          renderBadge(0);
+          sendResponse({ success: true, unread: 0 });
           break;
         }
+
+        // DOWNLOAD_SELECTED 已随 V16-02 删除：其唯一用途（显式整批直下）由
+        // DOWNLOAD_ZIP + payload.strategy='direct' 覆盖，无需单独维护一条消息通路
 
         case MESSAGE_TYPES.DOWNLOAD_ONE: {
           await store.init();
@@ -726,6 +1022,19 @@ function handleRuntimeMessage(message, sender, sendResponse) {
           break;
         }
 
+        case MESSAGE_TYPES.PHASH_REQUEST: {
+          const result = await handlePhashRequest(message.payload);
+          sendResponse({ success: true, ...result });
+          break;
+        }
+
+        case MESSAGE_TYPES.PHASH_RESULT: {
+          // offscreen 逐条回传：写回 store 并转发进度，本身不需要等待
+          handlePhashResult(message.payload);
+          sendResponse({ success: true });
+          break;
+        }
+
         case MESSAGE_TYPES.SCROLL_CAPTURE_START:
         case MESSAGE_TYPES.SCROLL_CAPTURE_STOP: {
           const result = await routeScrollCapture(message.type);
@@ -736,6 +1045,12 @@ function handleRuntimeMessage(message, sender, sendResponse) {
         case MESSAGE_TYPES.SCROLL_CAPTURE_STATE: {
           // content script 广播给 popup 的状态消息，background 只需确认接收
           sendResponse({ success: true });
+          break;
+        }
+
+        case MESSAGE_TYPES.GET_SITE_PLAN: {
+          // 规则匹配在 background 完成，content script 只消费可序列化的计划
+          sendResponse({ success: true, plan: resolveSitePlan(message.payload) });
           break;
         }
 
@@ -813,8 +1128,104 @@ chrome.runtime.onInstalled.addListener(async () => {
     contexts: ['page'],
   });
 
+  chrome.contextMenus.create({
+    id: 'open-download-image',
+    title: '__MSG_menuDownloadImage__',
+    contexts: ['image'],
+  });
+
+  // 扩展重载后角标会被清空，按持久化的未读数恢复
+  renderBadge(store.getStats().unread);
+
   console.log('[OpenDownload] 扩展已安装');
 });
+
+// ─── 全局快捷键（V16-04） ──────────────────────────────
+// 注意：manifest 的 commands 是顶层字段，不是 permissions 条目，因此没有新增权限
+
+chrome.commands.onCommand.addListener(async (command) => {
+  await store.init();
+
+  switch (command) {
+    case 'toggle-listening': {
+      await toggleListening();
+      break;
+    }
+    case 'scroll-capture': {
+      // 用户可能停在不可抓取的页面（chrome:// 等），静默失败即可
+      await routeScrollCapture(MESSAGE_TYPES.SCROLL_CAPTURE_START);
+      break;
+    }
+    default:
+      break;
+  }
+});
+
+// ─── 扩展启动（浏览器重启） ────────────────────────────
+
+chrome.runtime.onStartup.addListener(async () => {
+  await store.init();
+  // 角标是浏览器侧状态，重启后按持久化的未读数重新渲染
+  renderBadge(store.getStats().unread);
+});
+
+/**
+ * 右键「下载此图」：显式下载用户点击的那张图
+ * 语义要点（见 v1.6 设计文档 FR-4.3）：
+ * - 已存在的记录不重复入库，直接对该条记录触发下载（用户意图是下载，不是登记）
+ * - 站点被暂停或全局关闭时不入库，但下载照常执行（用户是显式要求）
+ * @param {Object} info - 右键菜单点击信息（使用 info.srcUrl）
+ * @param {Object} tab - 来源标签页
+ */
+async function downloadImageFromContextMenu(info, tab) {
+  const url = info?.srcUrl || '';
+  // 与捕获链路同一原则：blob:/data: 不可重复下载或体积不可控
+  if (!url || url.startsWith('blob:') || url.startsWith('data:')) return;
+
+  // 右键菜单来自 contexts: ['image']，元素类型已知；判不出类型时兜底为图片
+  const mediaType = detectMediaType({ url }) || MEDIA_TYPES.IMAGE;
+
+  if (!isCaptureAllowed(store.getSettings(), extractDomain(info?.pageUrl || ''))) {
+    // downloadImage 对「记录不存在」是安全的（状态更新会被 store 忽略）
+    await downloader.downloadImage({
+      id: `context-menu-${Date.now()}`,
+      mediaType,
+      url,
+      domain: extractDomain(url),
+      mimeType: '',
+    });
+    return;
+  }
+
+  let media = store.findMediaByUrl(url);
+  if (!media) {
+    media = store.addMedia({
+      mediaType,
+      url,
+      filename: extractFilename(url),
+      extension: getNormalizedExtension(url),
+      domain: extractDomain(url),
+      mimeType: '',
+      size: 0,
+      tabUrl: info?.pageUrl || '',
+      tabTitle: tab?.title || '',
+      // 该 URL 来自页面里的 DOM 元素，与 DOM 兜底捕获同源
+      source: 'dom',
+    });
+
+    if (media) {
+      chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.MEDIA_FOUND,
+        payload: media,
+      }).catch(() => {});
+      renderBadge(store.getStats().unread);
+    }
+  }
+
+  if (media) {
+    await downloader.downloadImage(media);
+  }
+}
 
 // ─── 右键菜单处理 ──────────────────────────────────────
 
@@ -822,18 +1233,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await store.init();
   switch (info.menuItemId) {
     case 'open-download-toggle': {
-      const settings = store.getSettings();
-      const newEnabled = !settings.enabled;
-      await store.saveSettings({ enabled: newEnabled });
-      // 通知 popup 更新状态
-      chrome.runtime.sendMessage({
-        type: MESSAGE_TYPES.TOGGLE_LISTENING,
-        payload: { enabled: newEnabled },
-      }).catch(() => {});
+      await toggleListening();
       break;
     }
     case 'open-download-clear': {
       store.clearAll();
+      renderBadge(0);
+      break;
+    }
+    case 'open-download-image': {
+      await downloadImageFromContextMenu(info, tab);
       break;
     }
     case 'open-download-site-toggle': {
@@ -866,4 +1275,5 @@ export {
   handleDomMediaUpdate,
   routeScrollCapture,
   planTransfer,
+  resolveSitePlan,
 };

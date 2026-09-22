@@ -25,6 +25,20 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* 表单控件默认不继承页面字体，显式继承以避免字形与周围文本不一致 */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* 键盘导航焦点环：鼠标点击不显示 */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
@@ -142,7 +156,7 @@ h1 {
   color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:not(:disabled):hover {
   background: var(--primary-hover);
 }
 
@@ -152,8 +166,14 @@ h1 {
   border-color: var(--border);
 }
 
-.btn-secondary:hover {
+.btn-secondary:not(:disabled):hover {
   background: var(--bg-secondary);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .toast {
@@ -161,8 +181,9 @@ h1 {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%) translateY(100px);
-  background: #1a202c;
-  color: white;
+  /* 反色提示：亮色下为深底白字，暗色下自动反转为浅底深字 */
+  background: var(--text);
+  color: var(--bg);
   padding: 10px 20px;
   border-radius: 6px;
   font-size: 13px;
@@ -174,4 +195,16 @@ h1 {
 .toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* ─── 减少动态效果 ─── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

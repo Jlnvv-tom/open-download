@@ -1,0 +1,5 @@
+# Open Download 落地页与教程：允许全站抓取，便于搜索引擎发现教程内容
+User-agent: *
+Allow: /
+
+Sitemap: https://wujihuan.github.io/open-download/sitemap.xml

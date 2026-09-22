@@ -45,6 +45,20 @@
   box-sizing: border-box;
 }
 
+/* 表单控件默认不继承页面字体，显式继承以避免按钮/输入框字形与周围文本不一致 */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* 键盘导航焦点环：鼠标点击不显示，避免视觉噪音 */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
 body {
   width: 480px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -255,6 +269,11 @@ body {
   color: var(--text);
 }
 
+/* 搜索框自身无边框，用 box-shadow 提示聚焦，避免加边框导致布局跳动 */
+.search-box:focus-within {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
 .btn-icon {
   display: flex;
   align-items: center;
@@ -287,12 +306,14 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   flex-shrink: 0;
 }
 
 .filter-row {
-  flex: 1;
+  flex: 1 1 120px;
+  min-width: 110px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -356,9 +377,10 @@ body {
 /* ─── Image List ─── */
 
 .image-list {
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
-  min-height: 200px;
+  /* 站点行/容量提示/筛选面板会叠加占用高度，min-height 过大会让总高突破 600px 被裁剪 */
+  min-height: 120px;
   max-height: 320px;
 }
 
@@ -481,11 +503,23 @@ body {
   display: flex;
   gap: 8px;
   margin-top: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
 
+/* 元信息不换行以保持行高稳定：域名可收缩省略，其余字段（大小/时长/类型）始终完整可见 */
 .image-meta span {
+  flex: 0 0 auto;
+  min-width: 0;
   font-size: 10px;
   color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-meta span:first-child {
+  flex: 0 1 auto;
 }
 
 .image-status {
@@ -531,7 +565,8 @@ body {
   transition: all 0.2s;
 }
 
-.image-item:hover .image-remove {
+.image-item:hover .image-remove,
+.image-item:focus-within .image-remove {
   opacity: 1;
 }
 
@@ -559,9 +594,13 @@ body {
   transition: all 0.2s;
 }
 
+/* 悬浮或键盘聚焦时显现：否则 Tab 聚焦到的按钮 opacity:0，键盘用户完全看不到 */
 .image-item:hover .image-download,
 .image-item:hover .image-cancel,
-.image-item:hover .image-retry {
+.image-item:hover .image-retry,
+.image-item:focus-within .image-download,
+.image-item:focus-within .image-cancel,
+.image-item:focus-within .image-retry {
   opacity: 1;
 }
 
@@ -664,22 +703,19 @@ body {
 
 .media-card-check {
   position: absolute;
-  z-index: 2;
-  border-radius: var(--radius-sm);
-  color: #fff;
-  font-weight: 700;
-}
-
-.media-card-check {
   top: 8px;
   left: 8px;
+  z-index: 2;
   width: 20px;
   height: 20px;
   display: none;
   align-items: center;
   justify-content: center;
+  border-radius: var(--radius-sm);
   background: var(--primary);
+  color: #fff;
   font-size: 12px;
+  font-weight: 700;
 }
 
 .media-card.selected .media-card-check {
@@ -790,11 +826,12 @@ body {
   flex: 1;
 }
 
-.btn-primary:hover {
+.btn-primary:not(:disabled):hover {
   background: var(--primary-hover);
 }
 
-.btn-primary:disabled {
+.btn-primary:disabled,
+.btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -805,7 +842,7 @@ body {
   border-color: var(--border);
 }
 
-.btn-secondary:hover {
+.btn-secondary:not(:disabled):hover {
   background: var(--bg-hover);
   color: var(--text);
 }
@@ -843,6 +880,34 @@ body {
 .btn-icon:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ─── Filter Checkbox Row（V16-03 相似归并） ─── */
+
+.filter-row.checkbox-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.filter-row.checkbox-row input[type="checkbox"] {
+  width: auto;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.filter-row.checkbox-row small {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+/* ─── Similar Group Header（V16-03） ─── */
+
+.list-group-header.similar-header {
+  border-left: 2px solid var(--primary);
 }
 
 /* ─── Grouped List View ─── */
@@ -945,6 +1010,34 @@ body {
 .site-action:hover {
   border-color: var(--primary);
   color: var(--primary);
+}
+
+/* ─── Rating Row（V16-05 一次性评分引导） ─── */
+
+.site-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rating-row .site-info {
+  flex: 1;
+}
+
+.rating-row .rating-open {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.rating-row .rating-open:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.rating-row .site-action[data-i18n-title] {
+  padding: 3px 6px;
+  line-height: 1;
 }
 
 /* ─── Status Indicator ─── */
@@ -1110,4 +1203,21 @@ body.lightbox-open {
   right: 10px;
   top: 50%;
   transform: translateY(-50%);
+}
+
+/* ─── 减少动态效果 ─── */
+
+/* 尊重系统的「减少动态效果」偏好：停掉脉冲/旋转与过渡，避免眩晕 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .media-card:hover {
+    transform: none;
+  }
 }

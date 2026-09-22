@@ -15,6 +15,15 @@
   "menuSiteToggle": {
     "message": "Open Download: 暂停/恢复此站点捕获"
   },
+  "menuDownloadImage": {
+    "message": "Open Download: 下载此图"
+  },
+  "commandToggleListening": {
+    "message": "开启/关闭监听"
+  },
+  "commandScrollCapture": {
+    "message": "对当前页面滚动抓取"
+  },
 
   "statCaptured": {
     "message": "已捕获"
@@ -260,6 +269,60 @@
   "summaryVolumes": {
     "message": "分 $1 卷打包"
   },
+  "summaryVideoDirect": {
+    "message": "视频 $1 个已逐条下载"
+  },
+  "filterSortBy": {
+    "message": "排序"
+  },
+  "sortCapturedAt": {
+    "message": "捕获时间"
+  },
+  "sortSharpness": {
+    "message": "清晰度"
+  },
+  "filterMergeSimilar": {
+    "message": "归并相似图"
+  },
+  "filterMergeSimilarHint": {
+    "message": "本地逐张分析，较慢；仅分析本机图片，不上传"
+  },
+  "mergeSimilarProgress": {
+    "message": "分析中 $1/$2"
+  },
+  "mergeSimilarSummary": {
+    "message": "已分析 $1 张，$2 张无法计算（跨域或已失效）"
+  },
+  "groupSimilarCount": {
+    "message": "相似 $1 张"
+  },
+  "tooltipExpandSimilar": {
+    "message": "展开查看全部"
+  },
+  "tooltipCollapseSimilar": {
+    "message": "只看最清晰的一张"
+  },
+  "tooltipGroupDisabledByMerge": {
+    "message": "相似归并开启时不可用"
+  },
+  "errorPhashInProgress": {
+    "message": "已有图片分析进行中，请稍后再试"
+  },
+  "errorNothingToAnalyze": {
+    "message": "没有可分析的图片"
+  },
+  "errorInvalidAnalysisParams": {
+    "message": "图片分析参数无效"
+  },
+  "ratingPrompt": {
+    "message": "用得顺手？给个评分"
+  },
+  "ratingAction": {
+    "message": "去评分"
+  },
+  "ratingDismiss": {
+    "message": "不再提示"
+  },
   "summaryFailureReasons": {
     "message": "失败原因: $1"
   },
@@ -366,6 +429,12 @@
   },
   "optionsResetDone": {
     "message": "已恢复默认设置"
+  },
+  "optionsVideoDirect": {
+    "message": "视频逐条下载（不打包）"
+  },
+  "optionsVideoDirectHint": {
+    "message": "开启后视频不参与 ZIP 打包，避免大体积视频拖慢甚至卡住整包；默认开启"
   },
   "optionsSendCookies": {
     "message": "打包时携带 Cookie"

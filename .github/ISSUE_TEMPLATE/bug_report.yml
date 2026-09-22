@@ -1,0 +1,62 @@
+name: 缺陷报告
+description: 功能不正常、出现报错，或结果与预期不符
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: extension-version
+    attributes:
+      label: 扩展版本
+      description: 在 chrome://extensions 的扩展卡片上可以看到
+      placeholder: 1.6.0
+    validations:
+      required: true
+  - type: input
+    id: chrome-version
+    attributes:
+      label: 浏览器版本
+      placeholder: Chrome 130.0.6723.58（macOS 14）
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 越具体越好，必要时附页面 URL
+      placeholder: |
+        1. 打开 …
+        2. 点击 …
+        3. 观察到 …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      description: 如果涉及下载，请说明结果提示里显示的内容（例如「成功 12 个，失败 3 个」）
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: 控制台日志
+      description: 扩展的 Service Worker 控制台（chrome://extensions → 点击「Service Worker」）里的报错或警告，直接粘贴即可
+      render: shell
+    validations:
+      required: false
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: 是否可稳定复现
+      options:
+        - 每次都能复现
+        - 偶发（多次尝试中出现过一次或几次）
+        - 只出现过一次，无法复现
+    validations:
+      required: true

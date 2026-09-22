@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "default_locale": "zh_CN",
   "minimum_chrome_version": "116",
   "description": "__MSG_extDesc__",
@@ -36,6 +36,25 @@
       "run_at": "document_idle"
     }
   ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      }
+    },
+    "toggle-listening": {
+      "suggested_key": {
+        "default": "Alt+Shift+L"
+      },
+      "description": "__MSG_commandToggleListening__"
+    },
+    "scroll-capture": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "__MSG_commandScrollCapture__"
+    }
+  },
   "icons": {
     "16": "assets/icon-16.png",
     "48": "assets/icon-48.png",

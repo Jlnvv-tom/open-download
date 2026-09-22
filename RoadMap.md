@@ -18,7 +18,7 @@
 
 1. 网络层被动监听：能捕获 DOM 中不出现的资源（预加载图、轮播后台原图、JS 动态请求）。
 2. 图片 + 视频双类型一站式（两个竞品赛道几乎互不跨界）。
-3. 零依赖、无远程资源、无统计上报、MIT 开源、154 个测试用例的工程质量。
+3. 零依赖、无远程资源、无统计上报、MIT 开源、235 个测试用例的工程质量。
 
 ## 2. 现状基线（v1.2.0）
 
@@ -127,14 +127,37 @@
 - [x] **V15-05（P2）Firefox 移植可行性评估**
   - 产出：调研文档（webRequest、offscreen、storage 差异），给「做/不做」结论，不实现
   - 结论文档：[specs/analysis/firefox-port-feasibility/2026-09-21-firefox-port-feasibility.md](specs/analysis/firefox-port-feasibility/2026-09-21-firefox-port-feasibility.md)（建议做，但排在 v1.6，唯一阻塞点是 offscreen 宿主抽象）
+- [x] **V15-06（P1）UI 样式与可用性打磨**
+  - 涉及：`src/popup/popup.css`、`src/options/options.css`（纯 CSS，不改 DOM 结构与 JS 行为）
+  - 方案：表单控件字体继承；列表元信息溢出保护；弹窗总高裁剪修复（站点行与容量提示叠加后超出 600px）；筛选面板换行；`:focus-visible` 焦点环与条目操作按钮键盘可见；禁用态与 hover 守卫；`prefers-reduced-motion` 降级；合并重复的 `.media-card-check` 规则
+  - 验收：亮/暗主题下弹窗与设置页无内容裁剪；键盘可完整操作列表条目；系统「减少动态效果」开启后无持续动画
+  - 时序：**先于 V15-04 的商店截图执行**（截图需要稳定、无明显缺陷的界面）
+  - 方案细节见 [v1.5 设计文档 FR-6](specs/features/v15-engineering-i18n-listing/2026-09-21-v15-engineering-i18n-listing-design.md)
 
-### v1.6 差异化放大（方向性，立项时再细化）
+### v1.6 差异化放大（已立项，方案见设计文档）
 
-- [ ] **V16-01 平台适配器框架（P0）**：数据驱动的站点抓取规则（Pinterest、小红书、微博、电商列表页），规则文件可社区贡献；把 V14-01 的通用 DOM 兜底升级为站点感知
-- [ ] **V16-02 视频直链下载（P1）**：大文件旁路复用 V15-01，视频默认不走 ZIP；m3u8 分片合并工程量大，单独立项评估（含合规边界）
-- [ ] **V16-03 智能筛选探索（P1）**：感知哈希去相似图、清晰度评分、主色聚类；本地优先，可选外部 API 且默认关闭
-- [ ] **V16-04 增长功能（P1）**：扩展图标角标显示新捕获数（对标 CocoCut）、全局快捷键、右键「下载此图」菜单
-- [ ] **V16-05 增长运营（P2）**：docs 落地页 SEO 与场景化教程、评分引导、开源社区 Issue 模板
+> 逐任务实现方案、边界情况与测试计划详见
+> [specs/features/v16-differentiation-expansion/2026-09-22-v16-differentiation-expansion-design.md](specs/features/v16-differentiation-expansion/2026-09-22-v16-differentiation-expansion-design.md)。
+
+- [x] **V16-01 平台适配器框架（P0）**：数据驱动的站点抓取规则（Pinterest、小红书、微博、电商列表页），规则文件可社区贡献；把 V14-01 的通用 DOM 兜底升级为站点感知
+  - 立项调整：**本期只内置 1 个示例规则**（Wikipedia 正文图片），框架与规则 schema 一次做对，其余站点等真实反馈与社区贡献；规则库与匹配纯函数落 `src/lib/site-rules/`，由 background 匹配后把可序列化的提取计划下发给 content script
+  - 合规边界：规则只做「页面上已渲染内容的更精准定位」，不逆向接口、不绕过登录与付费墙
+  - 实现：`src/lib/site-rules/{engine,registry,wikipedia}.js` + 新消息 `GET_SITE_PLAN` + `DOM_MEDIA_UPDATE` 增加 `ruleId`/`ruleMiss` 诊断字段；规则零命中时自动退回通用兜底并按页面去重告警。**待手动验证**：Wikipedia 页面的噪音过滤、规则失效降级、SPA 路由后计划刷新（`lazy.moreSelector` 路径已实现但示例规则未使用，仅单测覆盖归一化）
+- [x] **V16-02 视频直链下载（P1）**：大文件旁路复用 V15-01，视频默认不走 ZIP；m3u8 分片合并工程量大，单独立项评估（含合规边界）
+  - 立项调整：混合批次按媒体类型拆分（视频直下 + 图片打包，`strategy: 'mixed'`），而非整批改直下；`DOWNLOAD_SELECTED` 经确认无使用场景，**随本任务删除**
+  - 实现：`transfer.videoDirect`（默认开启）驱动 `planTransfer()` 的媒体类型维度；`handleMixedDownload()` 先直下视频再打包图片，结果带 `directSucceeded` 供 UI 分开报数；Options 新增「视频逐条下载（不打包）」开关；删除 `DOWNLOAD_SELECTED` 常量与消息分支（其正面用例改写为「命中未知消息分支」）
+  - **待手动验证**：混合批次的两种产物实际落盘、关闭开关后视频重新进 ZIP、纯视频/纯图片两种边界
+- [x] **V16-03 智能筛选探索（P1）**：感知哈希去相似图、清晰度评分、主色聚类；本地优先，可选外部 API 且默认关闭
+  - 立项调整：本期只做感知哈希与清晰度评分，**主色聚类延后**；算法为纯函数（接收像素数组）以便在无 jsdom 的测试环境下覆盖，像素计算放在 offscreen 且按需触发
+  - 实现：`src/lib/image-hash.js`（`computePhash` dHash / `hammingDistance` / `computeSharpness` Laplacian 方差 / `groupBySimilarity` 贪心聚类）；消息 `PHASH_REQUEST` → offscreen 串行取像素（先缩到 64 边长再算）→ 逐条 `PHASH_RESULT` → background 即时写回 store 并转发 `PHASH_STATE`；popup 筛选面板新增「排序（捕获时间/清晰度）」与「归并相似图」（与按页面分组互斥，按钮置灰并说明）；media 新增 `phash`/`sharpness`（老数据经 normalize 补空，无迁移）
+  - **待手动验证**：真实站点上归并的误合并率与阈值（6）是否需要调参、跨域图失败后的汇总提示、几十张大图时的整体耗时；**只分析图片**，视频需解码帧，本期不纳入
+- [x] **V16-04 增长功能（P1）**：扩展图标角标显示新捕获数（对标 CocoCut）、全局快捷键、右键「下载此图」菜单
+  - 实现：`stats.unread` + `MARK_CAPTURED_READ`（打开弹窗清零，清空列表同时清空）；manifest 新增顶层 `commands`（`_execute_action` / `toggle-listening` / `scroll-capture`，**未新增权限**）；`contexts: ['image']` 的「下载此图」菜单（已存在记录复用不重复入库，站点暂停时只下载不入库）。版本号升 1.6.0
+  - **待手动验证**：角标在 SW 重启与扩展重载后的恢复、三条快捷键的实际按键与冲突提示、右键下载此图的实际下载行为
+- [x] **V16-05 增长运营（P2）**：docs 落地页 SEO 与场景化教程、评分引导、开源社区 Issue 模板
+  - 立项调整：本期只写中文教程（英文仅入口骨架）；评分引导改为一次性提示条（不每次弹窗打扰）
+  - 实现：`docs/guides/` 四页教程（总览 + 长列表抓图 / 大文件批量下载 / 挑选最清晰版本）与 `docs/en/guides/` 英文入口骨架，全部无远程资源；`docs/robots.txt` + `docs/sitemap.xml`；落地页导航与页脚加教程与评分入口；评分提示条（`ui.ratingPromptShown`，累计成功下载 ≥20 时出现一次，入口用 `chrome.runtime.id` 拼接商店详情页）；`.github/ISSUE_TEMPLATE/` 四个 YAML 表单（含「规则失效专属模板」，对应 V16-01 的 `ruleId`/`ruleMiss` 诊断字段）
+  - **待人工**：`grep -rn EXTENSION_ID_PLACEHOLDER docs/` 应在拿到商店 ID 后清空（占位在 6 个页面的页脚评分链接里）；教程的截图位待 V15-04 商店截图产出后补本地 png；`docs/en/guides/` 未纳入 sitemap（内容较薄，待补齐完整英文教程再收录）
 
 ## 5. 非目标（Non-goals）
 
@@ -152,7 +175,7 @@
 |------|------|---------|
 | popup/options/content/offscreen 无测试 | Jest coverage 仅覆盖 `src/lib/**` | v1.3 起每个版本为新增逻辑补测试；v1.5 评估 content/offscreen 的可测性 |
 | UI 硬编码中文 | 与 i18n 任务合并 | V15-03 |
-| `DOWNLOAD_SELECTED` 消息路径 | 已随 V15-01 收敛为「显式批量直下入口」（内部复用 `DOWNLOAD_ZIP` 的统一编排，不再单独维护直下逻辑）；popup 暂未发送，预留给 V16-02；同批移除的 `DOWNLOAD_ALL` 保持删除状态 | 已随 V15-01 关闭 |
+| `DOWNLOAD_SELECTED` 消息路径 | **已随 V16-02 删除**（无任何发送方）。需要显式整批直下时用 `DOWNLOAD_ZIP` + `strategy:'direct'`，该通路有单测覆盖 | 已关闭 |
 | 存储无字节级配额检测 | 上限提示先行，配额检测视 v1.4 数据量决定 | 观察项 |
 
 ## 7. 度量指标（每个版本发布后回顾）
@@ -184,3 +207,10 @@
 |------|-------------|------|
 | 2026-09-19 | 初版：v1.3 ~ v1.6 路线制定 | 依据竞品分析与 v1.2.0 代码走查 |
 | 2026-09-21 | v1.3 / v1.4 / v1.5（除 V15-04）勾选完成 | 补齐 v1.4 全部缺口（含 `CONTENT_IMAGES_UPDATE` 回归修复），并落地 V15-01/02/03/05；测试 83 → 154；版本号升 1.5.0 |
+| 2026-09-22 | v1.5 新增 V15-06「UI 样式与可用性打磨」（P1） | 补齐 v1.4 新增的站点行/来源筛选/分组头等 UI 带来的排版与可用性缺口；作为 V15-04 商店截图的前置；审计另修复 i18n 全角标点泄漏、`.tab span` 样式回归、`DOWNLOAD_SELECTED` 收敛、ZIP 超时未关闭 offscreen 四处缺陷 |
+| 2026-09-22 | v1.6 完成立项细化，去掉「方向性，待细化」标注 | 五任务全部展开为可执行方案：[v1.6 设计文档](specs/features/v16-differentiation-expansion/2026-09-22-v16-differentiation-expansion-design.md)。三处范围收敛：V16-01 只内置 1 个示例规则、V16-03 延后主色聚类、V16-05 只写中文教程；`DOWNLOAD_SELECTED` 计划随 V16-02 删除。同日审计补 1 项用例，测试数 154 → 155 |
+| 2026-09-22 | V16-01 平台适配器框架实现完成 | 新增 `src/lib/site-rules/`（引擎纯函数 + 规则注册表 + Wikipedia 示例规则）、消息 `GET_SITE_PLAN`、`DOM_MEDIA_UPDATE` 的 `ruleId`/`ruleMiss` 诊断字段与失效降级；测试数 155 → 187 |
+| 2026-09-22 | V16-04 增长功能实现完成 | 未读角标（`stats.unread` + `MARK_CAPTURED_READ`）、manifest 顶层 `commands` 三个快捷键（未新增权限）、右键「下载此图」；版本号 1.5.0 → 1.6.0；测试数 187 → 200 |
+| 2026-09-22 | V16-02 视频直链下载实现完成 | `transfer.videoDirect` 驱动媒体类型维度、`mixed` 策略与先直下后打包编排、Options 开关、`directSucceeded` 分开报数；删除 `DOWNLOAD_SELECTED` 常量与消息分支并改写其用例；测试数 200 → 208 |
+| 2026-09-22 | V16-03 智能筛选探索实现完成 | 新增 `src/lib/image-hash.js`（dHash + 汉明距离 + Laplacian 方差 + 相似聚类，纯函数可在 node 环境测试）、`PHASH_REQUEST/RESULT/STATE` 消息与 offscreen 串行取像素通路、popup 清晰度排序与相似归并视图；media 新增 `phash`/`sharpness`；测试数 208 → 234 |
+| 2026-09-22 | V16-05 增长运营实现完成，**v1.6 五个任务全部落地** | `docs/guides/` 四页教程 + 英文入口骨架 + robots/sitemap + 落地页导航与页脚入口；popup 一次性评分提示条（`ui.ratingPromptShown`）；`.github/ISSUE_TEMPLATE/` 四个 YAML 表单（含规则失效专属模板）；测试数 234 → 235；**遗留**：商店真实 ID 待上架后替换 `EXTENSION_ID_PLACEHOLDER`，教程截图位待补 |

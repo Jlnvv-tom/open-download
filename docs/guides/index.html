@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>网页图片与视频批量下载教程</title>
+  <meta name="description" content="三篇场景化教程：长列表页一次抓全图片、几百 MB 视频批量下载不失败、同一张图多个分辨率挑最清晰的。每篇都给出可复制的操作步骤与排查方法。">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="../index.html">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Open Download</span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html">教程</a>
+        <a href="../index.html#features">功能</a>
+        <a href="../index.html#install">安装</a>
+        <a href="../index.html#faq">FAQ</a>
+        <a class="nav-github" href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <article class="section guide">
+      <div class="container guide-inner">
+        <p class="guide-breadcrumb"><a href="../index.html">首页</a> / 教程</p>
+        <h1>网页图片与视频批量下载教程</h1>
+        <p class="guide-lead">
+          批量下载网页图片这件事，难点从来不在「保存」，而在「把该保存的都找出来、把不该保存的筛掉」。
+          现代网页的图片大多由脚本在滚动过程中动态插入，只查看源码往往只能看到一小部分；视频则通常体积很大，
+          混在压缩包里下载既慢又容易失败。下面三篇教程各针对一个最常见的具体问题，给出可以直接照着做的操作步骤，
+          每一步对应的都是扩展里已经存在的功能，不涉及任何需要绕过的操作。
+        </p>
+
+        <div class="guide-grid">
+          <a class="guide-card" href="batch-download-images.html">
+            <h3>批量下载网页图片：长列表页一次抓全</h3>
+            <p>懒加载图片要滚动才出现？用滚动抓取让页面自己把图加载出来，再筛掉图标与占位图。</p>
+          </a>
+          <a class="guide-card" href="large-video-batch.html">
+            <h3>网页视频批量下载：几百 MB 也不失败</h3>
+            <p>大文件为什么会在打包时报错或卡住，以及 50MB / 500MB 两个阈值如何自动改走逐条直下。</p>
+          </a>
+          <a class="guide-card" href="pick-highest-resolution.html">
+            <h3>同一张图多个分辨率，怎么挑最清晰的</h3>
+            <p>列表里出现同一张图的多个版本时，用清晰度排序与相似图归并，一次只留下最清晰的那版。</p>
+          </a>
+        </div>
+
+        <h2>三篇教程共用的四步流程</h2>
+        <p>
+          无论具体问题是什么，落地的动作都是同一套：<strong>捕获 → 筛选 → 预览 → 下载</strong>。
+          捕获由扩展在后台完成（网络请求观察 + 页面元素扫描两条通道，按 URL 自动去重）；筛选在弹窗的筛选面板里做，
+          支持媒体类型、扩展名、文件大小、最小宽高、来源（网络 / 页面）与关键词搜索；预览可以用列表或卡片视图；
+          下载既可以只下选中的几条，也可以整批打包。
+        </p>
+        <ol class="guide-steps">
+          <li>点击工具栏图标打开弹窗，确认顶部开关处于「监听中」。</li>
+          <li>正常浏览页面，或对长列表页启用滚动抓取，捕获到的条目会实时出现在列表里。</li>
+          <li>在筛选面板里收窄范围，例如只保留宽度大于 800 的图片、只看来源为页面元素的条目。</li>
+          <li>勾选需要的条目后点「下载选中」；要整批带走就用「全部下载」，扩展会自动决定打包还是逐条直下。</li>
+        </ol>
+
+        <p class="guide-note">
+          所有捕获记录只写入浏览器本地的 <code>chrome.storage.local</code>，扩展没有服务器，也不会上传任何数据。
+          权限用途的完整说明见<a href="../privacy.html">隐私政策</a>；扩展实际使用的下载能力可对照
+          <a href="https://developer.chrome.com/docs/extensions/reference/api/downloads" target="_blank" rel="noopener">Chrome 官方 downloads API 文档</a>。
+        </p>
+
+        <h2>从哪一篇开始</h2>
+        <ul>
+          <li>图片抓不全、列表里混进大量图标 → 先看<a href="batch-download-images.html">长列表页抓图教程</a>。</li>
+          <li>下载几百 MB 视频时失败或长时间卡住 → 先看<a href="large-video-batch.html">大文件批量下载教程</a>。</li>
+          <li>同一张图有多个版本、不知道该留哪个 → 先看<a href="pick-highest-resolution.html">挑选最清晰版本教程</a>。</li>
+        </ul>
+
+        <div class="guide-cta">
+          <h2>先装上，再照着做</h2>
+          <p>教程里的每一步在扩展里都现成可用：从<a href="../index.html#install">安装说明</a>开始，或先在
+            <a href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub 仓库</a>查看源码与 Releases 安装包。</p>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Open Download · MIT License · 数据仅存本地</p>
+      <p><a href="../index.html">首页</a> · <a href="index.html">教程</a> · <a href="../privacy.html">隐私政策</a> · <a href="../index.html#faq">FAQ</a> · <a href="https://chromewebstore.google.com/detail/EXTENSION_ID_PLACEHOLDER" target="_blank" rel="noopener">在商店评分</a></p>
+    </div>
+  </footer>
+</body>
+</html>

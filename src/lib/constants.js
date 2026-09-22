@@ -92,6 +92,10 @@ export const DEFAULT_SETTINGS = {
     contentSize: 104,
     groupByPage: false,   // 列表视图按来源页面分组
     sourceFilter: 'all',  // 来源筛选: 'all' | 'network' | 'dom'
+    mergeSimilar: false,  // 相似图归并（V16-03），与 groupByPage 互斥
+    sortBy: 'capturedAt', // 列表排序: 'capturedAt' | 'sharpness'（V16-03）
+    // 评分提示条只出现一次（V16-05）：写入 true 后永不再现
+    ratingPromptShown: false,
   },
   filters: {
     domains: [],          // 排除的域名列表
@@ -110,6 +114,8 @@ export const DEFAULT_SETTINGS = {
     maxZipBytes: 500 * 1024 * 1024,       // 单卷预估字节上限
     maxConcurrencyForLarge: 2,            // 直下大文件时的并发上限
     downloadTimeoutMs: 1800000,           // 直下单文件等待超时（30 分钟）
+    // 视频默认不参与 ZIP 打包（V16-02）：视频体积大且多为直链，逐条直下更快也更稳
+    videoDirect: true,
   },
   // ZIP 打包是否携带 Cookie（V15-02）：默认关闭，需用户显式开启
   sendCookies: false,
@@ -127,7 +133,6 @@ export const MESSAGE_TYPES = {
   GET_STATUS: 'GET_STATUS',
   GET_IMAGES: 'GET_IMAGES',
   CLEAR_IMAGES: 'CLEAR_IMAGES',
-  DOWNLOAD_SELECTED: 'DOWNLOAD_SELECTED', // 显式批量直下入口（内部复用 handleDownloadZip 编排；popup 暂未使用，预留给 V16-02）
   DOWNLOAD_ONE: 'DOWNLOAD_ONE',
   CANCEL_DOWNLOAD: 'CANCEL_DOWNLOAD',
   DOWNLOAD_ZIP: 'DOWNLOAD_ZIP',
@@ -135,6 +140,8 @@ export const MESSAGE_TYPES = {
   UPDATE_SETTINGS: 'UPDATE_SETTINGS',
   GET_SETTINGS: 'GET_SETTINGS',
   DOM_MEDIA_UPDATE: 'DOM_MEDIA_UPDATE',
+  GET_SITE_PLAN: 'GET_SITE_PLAN',
+  MARK_CAPTURED_READ: 'MARK_CAPTURED_READ',
   SITE_RULES_CHANGED: 'SITE_RULES_CHANGED',
   SCROLL_CAPTURE_START: 'SCROLL_CAPTURE_START',
   SCROLL_CAPTURE_STOP: 'SCROLL_CAPTURE_STOP',
@@ -143,6 +150,10 @@ export const MESSAGE_TYPES = {
   MEDIA_DETAILS_UPDATED: 'MEDIA_DETAILS_UPDATED',
   DOWNLOAD_STATUS_CHANGED: 'DOWNLOAD_STATUS_CHANGED',
   UPDATE_MEDIA_STATUSES: 'UPDATE_MEDIA_STATUSES',
+  // 内容级图像指标（V16-03）：popup → background → offscreen，结果逐条回传
+  PHASH_REQUEST: 'PHASH_REQUEST',
+  PHASH_RESULT: 'PHASH_RESULT',
+  PHASH_STATE: 'PHASH_STATE',
   ZIP_OFFSCREEN_READY: 'ZIP_OFFSCREEN_READY',
   ZIP_BUILD_REQUEST: 'ZIP_BUILD_REQUEST',
   ZIP_BUILD_PROGRESS: 'ZIP_BUILD_PROGRESS',

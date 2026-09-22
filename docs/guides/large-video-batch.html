@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>网页视频批量下载：几百 MB 也不失败</title>
+  <meta name="description" content="网页视频批量下载为什么在几百 MB 时失败：ZIP 全内存构建是主因。50MB / 500MB 两个阈值自动改走逐条直下，视频默认不进压缩包，进度与失败原因全程可见。">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="../index.html">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Open Download</span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html">教程</a>
+        <a href="../index.html#features">功能</a>
+        <a href="../index.html#install">安装</a>
+        <a href="../index.html#faq">FAQ</a>
+        <a class="nav-github" href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <article class="section guide">
+      <div class="container guide-inner">
+        <p class="guide-breadcrumb"><a href="../index.html">首页</a> / <a href="index.html">教程</a> / 大文件批量下载</p>
+        <h1>网页视频批量下载：几百 MB 也不失败</h1>
+        <p class="guide-lead">
+          很多人第一次尝试网页视频批量下载，都会在总量涨到几百 MB 时遇到同一类问题：进度条停在某个位置不动、
+          最终报一个看不懂的错误，或者浏览器直接变得很卡。这通常不是网速的问题，而是「先把所有文件读进内存、
+          再组装成一个压缩包」这种做法的固有上限。这篇教程解释失败的原因，以及两个体积阈值如何让大文件自动改走逐条直下。
+        </p>
+
+        <nav class="guide-toc">
+          <p>本文内容</p>
+          <ol>
+            <li><a href="#cause">失败的原因：整包先在内存里组装</a></li>
+            <li><a href="#thresholds">两个阈值：50MB 与 500MB</a></li>
+            <li><a href="#video-direct">视频默认不进压缩包</a></li>
+            <li><a href="#volumes">分卷打包与进度可见</a></li>
+            <li><a href="#limits">这些情况本扩展不处理</a></li>
+          </ol>
+        </nav>
+
+        <h2 id="cause">失败的原因：整包先在内存里组装</h2>
+        <p>
+          压缩包（ZIP）是一种需要「先知道全部内容、再写中央目录」的格式，因此最直观的实现方式是把待打包的每个文件
+          完整读入内存，全部拿到之后再一次性生成压缩包并交给浏览器下载。批量下载几十张小图时这套流程很快，
+          但一旦总量到几百 MB，内存占用会随文件数线性增长：轻则打包变慢、进度长时间停在原地，
+          重则这个后台任务被浏览器回收，表现就是「点了下载，最终什么都没有」。
+        </p>
+        <p>
+          解决办法不是把内存调大，而是<strong>在体积过线时干脆不打包</strong>：让每个文件各自作为一次普通下载，
+          由浏览器自己流式写盘，扩展只负责调度与状态记录。
+        </p>
+
+        <h2 id="thresholds">两个阈值：50MB 与 500MB</h2>
+        <p>
+          扩展在开始下载前会先算一遍这批资源的大小，然后据此选择传输方式：
+        </p>
+        <ul>
+          <li><strong>单文件超过 50MB</strong>：整批改为逐条直接下载。单个文件就到这个量级时，它本身已经不适合走内存打包。</li>
+          <li><strong>整批预估超过 500MB</strong>：同样改为逐条直接下载，避免「每个文件都不大、加起来却很大」的情况。</li>
+          <li><strong>两者都没超过</strong>：按卷打包成 ZIP，打包在后台的 offscreen 文档中完成，关掉弹窗不会中断。</li>
+        </ul>
+        <p>
+          对于无法读到文件大小、只能从页面元素上推断的视频（这类条目的体积显示为 0），扩展会按一个保守值估算，
+          宁可让它走直下，也不赌它很小。直下模式下的并发数会自动压低，避免同时写多个大文件把磁盘 IO 占满。
+        </p>
+
+        <h2 id="video-direct">视频默认不进压缩包</h2>
+        <p>
+          v1.6 起，视频条目默认不参与打包：当你同时选中图片和视频时，扩展会把批次拆开处理——视频逐条直接下载，
+          图片按上面的阈值决定打包或直下，最后在结果提示里分别报数（例如「视频 3 个已逐条下载，图片已打包」）。
+          这样你既不用手动分批，也不会因为一个 800MB 的视频把整批图片的压缩包一起拖垮。
+        </p>
+        <p>
+          如果你确实希望视频也进压缩包（例如为了方便归档），可以在扩展的 Options 页里关闭
+          「视频逐条下载（不打包）」；关闭后视频会回到与图片相同的阈值判定逻辑。
+        </p>
+        <p class="guide-note">
+          无论哪种方式，最终都由浏览器的下载能力写入磁盘，扩展只提交下载任务并跟踪状态；
+          相关能力可对照 <a href="https://developer.chrome.com/docs/extensions/reference/api/downloads" target="_blank" rel="noopener">Chrome 官方 downloads API 文档</a>。
+        </p>
+
+        <h2 id="volumes">分卷打包与进度可见</h2>
+        <p>
+          打包也不会无上限地堆积：单卷最多 200 个文件、预估不超过 500MB，超出的部分自动切到下一卷，
+          文件名会带上 <code>_part2</code>、<code>_part3</code> 这样的后缀。每完成一卷就立刻回写该卷条目的状态，
+          因此即使后续某一卷失败，前面已经下好的卷也不会白费。
+        </p>
+        <p>
+          进度与失败原因是全程可见的：打包时按钮上会显示「第 1/3 卷 12/200」这样的计数；
+          结束后如果仍有失败项，提示里会列出前几条具体原因（例如 HTTP 403），而不是只给一句「失败 N 个」。
+        </p>
+
+        <figure class="guide-figure">
+          <div class="guide-figure-slot">截图位：下载结果提示（分卷与失败原因）（将插入本地截图文件）</div>
+          <figcaption>结果提示会说明本次用了直下还是分卷，以及失败的具体原因。</figcaption>
+        </figure>
+
+        <h2 id="limits">这些情况本扩展不处理</h2>
+        <ul>
+          <li><strong>m3u8 / HLS 分片流</strong>：这类视频由成百上千个分片组成，需要专门的合并流程，本扩展只接受直链视频，不做分片合并。</li>
+          <li><strong>加密内容</strong>：需要解密才能播放的资源不在支持范围内，扩展也不做任何绕过。</li>
+          <li><strong>需要登录态的直链</strong>：默认不带 Cookie 的跨域请求会被站点拒绝。可以在 Options 里开启「打包时携带 Cookie」后重试，并注意这会把该站点的 Cookie 一并带给打包请求。</li>
+          <li><strong>站点已改为按需鉴权</strong>：如果视频地址带有短时效签名，过期后再下载会失败，回到页面重新触发一次捕获即可。</li>
+        </ul>
+
+        <div class="guide-cta">
+          <h2>下一步</h2>
+          <p>图片与视频混在一批里时不必手动分开选，扩展会按类型自动拆分。若还想知道怎么从多个分辨率里挑最清晰的，
+            见<a href="pick-highest-resolution.html">挑选最清晰版本</a>；回到列表页看全部教程见<a href="index.html">教程总览</a>。</p>
+        </div>
+
+        <p class="guide-related">相关教程：</p>
+        <ul>
+          <li><a href="batch-download-images.html">批量下载网页图片：长列表页一次抓全</a></li>
+          <li><a href="pick-highest-resolution.html">同一张图多个分辨率，怎么挑最清晰的</a></li>
+          <li><a href="../index.html#settings">全部设置项说明</a></li>
+        </ul>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Open Download · MIT License · 数据仅存本地</p>
+      <p><a href="../index.html">首页</a> · <a href="index.html">教程</a> · <a href="../privacy.html">隐私政策</a> · <a href="../index.html#faq">FAQ</a> · <a href="https://chromewebstore.google.com/detail/EXTENSION_ID_PLACEHOLDER" target="_blank" rel="noopener">在商店评分</a></p>
+    </div>
+  </footer>
+</body>
+</html>

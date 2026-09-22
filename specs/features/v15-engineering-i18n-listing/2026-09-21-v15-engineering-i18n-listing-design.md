@@ -1,7 +1,7 @@
 # v1.5 工程强化 + 国际化 + 上架开发计划
 
 - 日期：2026-09-21
-- 状态：已实现（V15-01 / V15-02 / V15-03 / V15-05 完成；V15-04 仓库内准备完成，商店提交与截图待人工执行）
+- 状态：已实现（V15-01 / V15-02 / V15-03 / V15-05 / V15-06 完成；V15-04 仓库内准备完成，商店提交与截图待人工执行）
 - 上游计划：[RoadMap.md](../../../RoadMap.md)（v1.5 章节，任务编号 V15-xx 与本文档一致）
 - 前置：v1.4 捕获增强（至少 V14-01 / V14-02 / V14-04）已完成，详见 1.4 节
 - 分析依据：[竞品对比分析与迭代路线图](../../analysis/competitive-analysis-roadmap/2026-09-19-competitive-analysis-and-roadmap.md)
@@ -63,6 +63,7 @@ v1.4 是 v1.5 的事实前置，原因是两处数据依赖：
 | 3 | V15-04 上架 Chrome Web Store | P0 | 1d | V15-03 | 隐私政策页、权限说明、双语商店文案与素材、`npm run pack` 产物 |
 | 4 | V15-02 打包携带 Cookie 可选 | P1 | 0.5d | V15-01 | `sendCookies` 经 `ZIP_BUILD_REQUEST` 透传到 `createMediaZip` |
 | 5 | V15-05 Firefox 移植可行性评估 | P2 | 0.5d | 无 | 调研文档，给做/不做结论，不实现 |
+| 6 | V15-06 UI 样式与可用性打磨 | P1 | 0.5d | v1.4 UI 定型 | 字体/溢出/焦点/动效/禁用态打磨，先于 V15-04 截图 |
 
 合计约 5 人日 + 测试与手动验证缓冲，与 RoadMap 的「2-3 周业余投入」一致。三条 P0（V15-01 / V15-03 / V15-04）齐即可发版，P1/P2 按 RoadMap 第 8 节的「以 P0 为发布标准」顺延。
 
@@ -259,6 +260,7 @@ HTML 的 `<title>` 不支持 `__MSG__`（那只作用于 manifest 字段），�
 4. **静态文案**：`src/popup/index.html` 与 `src/options/index.html` 的可见文本改为属性化（`data-i18n` / `data-i18n-placeholder` / `data-i18n-title`），页面加载时调用一次 `applyI18n(document)`。注意 `<input>` 的 `placeholder`、`title` 属性与标签文本要走不同属性，不可混用。
    - 实现决定：这两个 HTML 里**不再保留中文兜底文本**，元素内容由 `applyI18n()` 填充。原因是兜底文本会让「无硬编码中文」这条约束无法被自动化校验（见第 8 节）；`chrome.i18n` 在缺失语言时会回落到 `default_locale`，不存在取不到文案的情况。
 5. **动态文案**：`src/popup/popup.js` 中的 `getStatusText()`、`getDimensionsText()`（「未知尺寸」）、`renderEmptyState()`、`updateCapacityHint()`、`updateStatusUI()`、媒体 Tab 文案（图片/视频/全部）、`downloadMediaAsZip()` 的成功/失败 `alert`、导出文件名前缀等统一改为 `t()`；`src/lib/utils.js` 的 `formatSize()` 返回的「未知」（`src/lib/utils.js:127`）同样改为 `t()`。`src/options/options.js` 的 toast 与 `confirm` 同理。
+   - **列表分隔符也要走 i18n**：中英混排时最容易漏掉的是连接标点。`listComma` / `listSemicolon` 两个 key 承载 `，`/`；`（zh）与 `, `/`; `（en），否则英文界面会出现「1 succeeded，0 failed」。同时「无硬编码中文」的自动化校验必须把 CJK 标点与全角字符一并覆盖，否则这类泄漏测不出来。
 6. **右键菜单**：`src/background/index.js` 里 `chrome.contextMenus.create()` 的中文 `title` 改为 `__MSG_menuToggleListening__` / `__MSG_menuClearList__`（MV3 的 service worker 可以直接用 `chrome.i18n`，不必在 JS 里手动 `t()`）。
 7. **v1.4 UI 的文案约束（重要，避免返工）**：站点行（当前站点 / 跟随全局 / 已暂停 / 暂停此站点 / 恢复跟随）、来源筛选（全部 / 网络 / DOM）、滚动抓取按钮（滚动抓取 / 停止抓取 / 当前页面不支持滚动抓取）、分组视图（按页面分组 / 未知来源）等 v1.4 新增文案，**在 v1.4 UI 落地时必须直接写 `data-i18n` 或 `t()`，不允许再写死中文**。这些 key 在本文档锁定的 key 清单里已经预留。
 8. **构建**：`scripts/build.js` 用 `cp(srcDir, distDir, { recursive: true, filter: 排除 node_modules })` 全量复制 `src/`，`_locales` 会被自动带上，无需改复制逻辑；建议在 `validateDist()` 的 `requiredPaths` 里补 `_locales/<default_locale>/messages.json`，防止漏复制或 `default_locale` 写错 locale 码时静默通过（manifest 声明缺失会导致商店审核或运行时回落到意外语言）。
@@ -311,6 +313,24 @@ HTML 的 `<title>` 不支持 `__MSG__`（那只作用于 manifest 字段），�
 
 **验收**：文档产出且给出明确结论；本期不产生任何 `src/` 代码改动。
 
+### FR-6（V15-06）UI 样式与可用性打磨
+
+**需求**：弹窗与设置页在亮/暗主题下无溢出与裁剪，交互状态完整，键盘可达。全部为 CSS 层改动，不动 DOM 结构与 JS 行为。
+
+**方案**
+
+1. **字体继承**：`<button>`/`input`/`select`/`textarea` 默认不继承页面字体，两个样式表各补 `font-family: inherit`，消除按钮与周围文本的字形/字重不一致。
+2. **列表元信息溢出**：`.image-meta` 增加 `min-width: 0; overflow: hidden`，子 `span` 改 `flex: 0 0 auto` + 省略号，仅首个字段（域名）允许收缩（`flex: 0 1 auto`），保证大小/时长/类型始终完整可见；不换行以维持行高稳定（信息密度优先）。
+3. **弹窗总高裁剪**：`.image-list` 的 `min-height` 由 200px 降到 120px 并改 `flex: 1 1 auto`。v1.4 新增的站点行（约 29px）与容量提示会与既有固定高度区块叠加，突破 `.app` 的 `max-height: 600px; overflow: hidden` 后底部状态栏被裁掉。
+4. **筛选面板换行**：`.filter-panel` 加 `flex-wrap: wrap`，`.filter-row` 改 `flex: 1 1 120px` 并设 `min-width`，避免 5 行筛选在 480px 宽度下被压到不可用。
+5. **键盘可用性**：补 `:focus-visible` 焦点环；搜索框用 `:focus-within` + `box-shadow` 提示聚焦（本身无边框，避免加边框导致布局跳动）；条目内的悬浮操作按钮（移除/下载/取消/重试）在 `:focus-within` 时显现——否则 Tab 聚焦到的按钮 `opacity: 0`，键盘用户完全看不到。
+6. **禁用态**：hover 伪类加 `:not(:disabled)` 守卫，并补齐 `.btn-secondary:disabled`，避免禁用按钮仍有悬停反馈。
+7. **减少动态效果**：两端各加 `@media (prefers-reduced-motion: reduce)`，把动画/过渡压到 `0.001ms` 并取消卡片位移。
+8. **设置页 toast 反色**：由固定深底改为 `background: var(--text); color: var(--bg)`，暗色主题下自动反转为浅底深字。
+9. **代码卫生**：合并 `popup.css` 中重复的 `.media-card-check` 规则块（同一选择器写了两遍）。
+
+**验收**：亮/暗主题下弹窗与设置页无内容裁剪；键盘可完整操作（Tab 可见焦点环、条目操作按钮可见）；系统开启「减少动态效果」后无持续动画；`npm test` 与 `npm run build` 不受影响。
+
 ## 5. 消息类型与数据结构变更汇总
 
 本期的核心取舍之一：**不新增消息类型**。所有编排都复用现有通路，只在 payload 上做扩展。
@@ -360,7 +380,7 @@ description: '__MSG_extDesc__',
 | 单卷触发 `maxZipFiles` 与 `maxZipBytes` 两个条件 | 任一先到即切卷，`||` 短路，保持原始顺序 |
 | 打包被切成 1 卷 | 文件名不带 `_partN` 后缀，与现有格式完全一致（向后兼容硬要求） |
 | 第 N 卷失败 | 前 N-1 卷状态已落库保留；提示失败卷数与原因；不做自动重打包 |
-| 触发 `ZIP_BUILD_TIMEOUT`（300s） | 抛出带「已完成卷/成功条数/首条失败原因」的错误，popup 展示；不再静默 |
+| 触发 `ZIP_BUILD_TIMEOUT`（300s） | 抛出带卷号与资源数的错误，popup 展示；不再静默。**同时关闭 offscreen 文档**：超时时文档内可能仍有进行中的打包，不关闭会让下一轮复用脏文档并泄漏 blobUrl |
 | 直下单任务超过 `waitForDownload` 默认 120s | 旁路前通过 `DownloadManager.setDownloadTimeout()` 放宽，避免被误判失败 |
 | 直下过程中用户取消 | 复用 `cancelOne` / `cancelAll`，用户取消状态回退 pending、不计入 failed（现有语义，不变更） |
 | 大文件并发过高抢占 IO | 直下时并发压制到 `Math.min(settings.concurrency, maxConcurrencyForLarge)` |
@@ -389,6 +409,8 @@ description: '__MSG_extDesc__',
 | `src/background/index.js` | +`planTransfer()` / `estimateSize()` / `splitVolumes()`；`DOWNLOAD_ZIP` 改为策略编排（含多卷串行与分卷状态落库）；启用 `DOWNLOAD_SELECTED` 直下；右键菜单 title 改 `__MSG_*__` |
 | `src/popup/popup.js` | 下载编排的结果提示（失败原因前若干条）；`ZIP_PROGRESS` 文案支持卷进度；全量文案改 `t()` |
 | `src/popup/index.html` | 静态文案属性化（`data-i18n` / `data-i18n-placeholder` / `data-i18n-title`） |
+| `src/popup/popup.css` | 站点行/时长角标/分组头/来源筛选样式；V15-06 的字体继承、溢出保护、焦点环、禁用态、动效降级、重复规则合并 |
+| `src/options/options.css` | V15-06 的字体继承、焦点环、禁用态、动效降级、toast 反色 |
 | `src/options/options.js` | +`sendCookies` 字段读写；toast/confirm 文案改 `t()` |
 | `src/options/index.html` | 新增 `#send-cookies` checkbox 与隐私说明；静态文案属性化 |
 | `src/manifest.json` | +`default_locale`；`name`/`description` 改 `__MSG_*__`；`version` 升 `1.5.0` |
@@ -427,5 +449,6 @@ description: '__MSG_extDesc__',
 2. v1.3 / v1.4 回归：单条下载、取消、重试、lightbox、导出列表、站点暂停、滚动抓取、分组视图、来源筛选均不受影响（本期不改 UI 结构，风险集中在 i18n 与下载编排两处）。
 3. 打包产物检查：`npm run pack` 后用 `unzip -l` 确认包内无 `__tests__/` / `docs/` / `node_modules/`，且 `_locales` 已包含。
 4. i18n 抽取完整性抽测：全局 grep `src/popup`、`src/options` 内剩余的中文字符串常量，确认只剩注释。
-5. 上架前一致性核对：manifest 权限清单 = 商店权限说明 = 隐私政策描述（三项逐条比对）。
-6. 发版走 `npm run release`（版本升 `1.5.0`），随后提交 Chrome Web Store 审核。
+5. UI 打磨验证（V15-06）：亮/暗两套主题下分别打开弹窗与设置页，确认无内容被裁剪、列表 meta 不溢出；键盘 Tab 能完整走完列表条目并看到焦点环与操作按钮；打开系统「减少动态效果」后监听状态点不再脉冲。
+6. 上架前一致性核对：manifest 权限清单 = 商店权限说明 = 隐私政策描述（三项逐条比对）。
+7. 发版走 `npm run release`（版本升 `1.5.0`），随后提交 Chrome Web Store 审核。

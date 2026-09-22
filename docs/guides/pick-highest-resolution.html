@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>同一张图多个分辨率，怎么挑最清晰的</title>
+  <meta name="description" content="网页图片最高清的那一版怎么挑：用清晰度排序把大图顶上来，用相似图归并把同一张图的多个分辨率折叠成一条，只保留最清晰的那版再下载。">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="../index.html">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Open Download</span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html">教程</a>
+        <a href="../index.html#features">功能</a>
+        <a href="../index.html#install">安装</a>
+        <a href="../index.html#faq">FAQ</a>
+        <a class="nav-github" href="https://github.com/wujihuan/open-download" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <article class="section guide">
+      <div class="container guide-inner">
+        <p class="guide-breadcrumb"><a href="../index.html">首页</a> / <a href="index.html">教程</a> / 挑选最清晰版本</p>
+        <h1>同一张图多个分辨率，怎么挑最清晰的</h1>
+        <p class="guide-lead">
+          图库与内容站为了让同一张图在缩略图、正文、灯箱等位置都能用，通常会给它准备多个不同尺寸的地址。
+          抓取时这些版本会全部进入列表，肉眼几乎分不清哪条才是原图。这篇教程介绍两种互补的做法：
+          用「清晰度排序」把细节最多的那版顶到最前，用「归并相似图」把同一张图的多个版本折叠成一条，
+          默认只展示最清晰的那版。两种计算都在你自己的浏览器里完成，不联网、不上传。
+        </p>
+
+        <nav class="guide-toc">
+          <p>本文内容</p>
+          <ol>
+            <li><a href="#why">为什么同一张图会出现很多个版本</a></li>
+            <li><a href="#sort">按清晰度排序，把最清晰的那版顶上来</a></li>
+            <li><a href="#merge">归并相似图，一次只留一条</a></li>
+            <li><a href="#how">这些分数是怎么算出来的</a></li>
+            <li><a href="#tuning">误合并或漏合并时怎么办</a></li>
+          </ol>
+        </nav>
+
+        <h2 id="why">为什么同一张图会出现很多个版本</h2>
+        <p>常见来源有三种，它们对应的地址往往只差几个参数：</p>
+        <ul>
+          <li><strong>同一路径的不同尺寸后缀</strong>，例如 <code>_thumb</code>、<code>_medium</code>、<code>_large</code>。</li>
+          <li><strong>CDN 的尺寸与裁剪参数</strong>，例如 <code>?w=200</code> 与 <code>?w=1600</code>——同一张图被请求了两次，因此两条都会被记录。</li>
+          <li><strong>响应式图片</strong>：页面用 <code>srcset</code> 声明多个候选地址，浏览器按当前屏幕密度挑选要加载的那一个。</li>
+        </ul>
+        <p>
+          因为扩展是「看到什么记什么」，这些版本都会如实进入列表——这是特性而不是缺陷：只有都记录下来，
+          你才有机会挑到最大的那版。问题在于，平铺的列表并不能告诉你哪条最大。
+        </p>
+
+        <h2 id="sort">按清晰度排序，把最清晰的那版顶上来</h2>
+        <ol class="guide-steps">
+          <li>打开弹窗，点漏斗图标展开筛选面板。</li>
+          <li>在「排序」里选「清晰度」。</li>
+          <li>列表会按清晰度分数从高到低重排，细节最丰富的那版排在最前面；分数相同（通常是还没算过）的条目按捕获时间回落排序。</li>
+        </ol>
+        <p>
+          第一次切换时会看到「分析中 x/y」的进度提示：清晰度需要实际读取图片像素才能算，扩展会逐张分析，
+          因此图片较多时需要等一会儿。已经算过的条目不会重复分析，切回「捕获时间」排序可以随时恢复原来的顺序。
+        </p>
+        <p class="guide-note">
+          排序是按当前筛选结果整体重排的，所以你可以先按「最小尺寸」筛掉小图，再按清晰度排序，
+          这样列表顶部就是真正值得保存的那几张。
+        </p>
+
+        <h2 id="merge">归并相似图，一次只留一条</h2>
+        <p>
+          如果同一张图的版本特别多，逐个比较仍然费事，这时用「归并相似图」：
+        </p>
+        <ol class="guide-steps">
+          <li>在筛选面板里勾选「归并相似图」。</li>
+          <li>扩展会逐张分析图片，把它们按内容相似度分组；同一张图的不同分辨率会被折叠成一组。</li>
+          <li>组头显示「相似 N 张」，默认只展示组内<strong>最清晰</strong>的那一条；点击组头可以展开查看其余版本。</li>
+        </ol>
+        <p>
+          与无法比较的条目（例如跨域读取失败、或还没分析过的图）都会各自独立显示，不会被误并入某一组。
+          另外，归并视图与「按页面分组」互斥：开启归并后「按页面分组」按钮会变为不可用，
+          鼠标悬停可以看到说明，关掉归并即可恢复。
+        </p>
+
+        <h2 id="how">这些分数是怎么算出来的</h2>
+        <p>
+          两件事都在本地算：<strong>相似度</strong>用感知哈希（把图片缩成小图后比较相邻像素的明暗关系，
+          得到一串指纹，两张图指纹的差异位数越小越相似，算法思路见
+          <a href="https://en.wikipedia.org/wiki/Perceptual_hashing" target="_blank" rel="noopener">Perceptual hashing 词条</a>），
+          <strong>清晰度</strong>用灰度图的拉普拉斯方差（把每个像素与它上下左右邻居做比较，边缘越多、细节越多，
+          分数越高；纯色与模糊图的分数接近 0）。
+        </p>
+        <p>
+          计算发生在扩展的后台文档里，按需触发、逐张串行处理，图片会先被缩小再计算，因此大图也不会拖慢整体速度。
+          整个过程不发起任何数据上报——图片只在你的浏览器里被读取一次像素，随后丢弃，
+          这一点与隐私政策中的说明一致（见<a href="../privacy.html">隐私政策</a>）。
+        </p>
+
+        <h2 id="tuning">误合并或漏合并时怎么办</h2>
+        <ul>
+          <li><strong>两张不同的图被并成一组</strong>：多数出现在本身就很相似的同系列图上（例如同一组连拍或同一套插画）。可以展开分组逐条查看，把确实不需要的移除。</li>
+          <li><strong>同一张图的多个版本没有被并到一起</strong>：如果某个版本经过了明显裁剪或加了水印，指纹差异会变大，从而被判定为不同的图。</li>
+          <li><strong>想完全避免误判</strong>：关掉「归并相似图」，改用「按清晰度排序」逐条挑选——两者是独立的，归并不影响排序。</li>
+          <li><strong>有稳定的复现样本</strong>：欢迎带上截图与页面地址，在
+            <a href="https://github.com/wujihuan/open-download/issues" target="_blank" rel="noopener">GitHub Issues</a> 反馈，相似度阈值需要真实样本才能调准。</li>
+        </ul>
+
+        <div class="guide-cta">
+          <h2>下一步</h2>
+          <p>挑好版本之后，如果清单里还有视频或大批量资源，接着看
+            <a href="large-video-batch.html">几百 MB 视频批量下载怎么不失败</a>；
+            还没装满列表的话，先看<a href="batch-download-images.html">长列表页一次抓全</a>。</p>
+        </div>
+
+        <p class="guide-related">相关教程：</p>
+        <ul>
+          <li><a href="batch-download-images.html">批量下载网页图片：长列表页一次抓全</a></li>
+          <li><a href="large-video-batch.html">网页视频批量下载：几百 MB 也不失败</a></li>
+          <li><a href="index.html">全部教程总览</a></li>
+        </ul>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Open Download · MIT License · 数据仅存本地</p>
+      <p><a href="../index.html">首页</a> · <a href="index.html">教程</a> · <a href="../privacy.html">隐私政策</a> · <a href="../index.html#faq">FAQ</a> · <a href="https://chromewebstore.google.com/detail/EXTENSION_ID_PLACEHOLDER" target="_blank" rel="noopener">在商店评分</a></p>
+    </div>
+  </footer>
+</body>
+</html>

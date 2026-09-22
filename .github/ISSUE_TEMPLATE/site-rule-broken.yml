@@ -1,0 +1,75 @@
+name: 站点规则失效
+description: 内置站点规则不再命中所属站点（页面改版、选择器失效、命中数明显变少）
+title: "[规则失效] "
+labels: ["site-rule"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        站点规则只做「对页面上已渲染内容的更精准定位」。站点改版导致规则失效时，
+        扩展会**自动回落到通用扫描**，因此症状通常是「仍然能抓到，但数量变少或混入更多噪音图片」，
+        而不是完全没有结果。控制台若出现含规则 id 的零命中警告，请一并填在下面。
+  - type: input
+    id: site-url
+    attributes:
+      label: 出现问题的页面 URL
+      description: 请填具体页面地址，而不是站点首页
+      placeholder: https://zh.wikipedia.org/wiki/…
+    validations:
+      required: true
+  - type: input
+    id: rule-id
+    attributes:
+      label: 规则 id
+      description: 打开扩展的 Service Worker 控制台，若看到「站点规则 xxx 在本页零命中」即填该 id；不确定可留空
+      placeholder: wikipedia
+    validations:
+      required: false
+  - type: input
+    id: rule-version
+    attributes:
+      label: 规则版本
+      description: 对应规则文件里的 version 字段（src/lib/site-rules/ 目录下）
+      placeholder: "1"
+    validations:
+      required: false
+  - type: input
+    id: expected-count
+    attributes:
+      label: 期望捕获数
+      description: 该页面上你实际想抓到的媒体条数
+      placeholder: 约 20 张正文图片
+    validations:
+      required: true
+  - type: input
+    id: actual-count
+    attributes:
+      label: 实际捕获数
+      description: 弹窗里「匹配」显示的数字
+      placeholder: "3"
+    validations:
+      required: true
+  - type: dropdown
+    id: rule-miss-warn
+    attributes:
+      label: 控制台是否出现零命中警告
+      options:
+        - 出现了（含规则 id）
+        - 没有出现
+        - 没有检查控制台
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 浏览器版本 / 扩展版本
+      placeholder: Chrome 130.0 / Open Download 1.6.0
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充说明
+      description: 期望捕获的元素在页面上的位置、是否需要滚动或点击「加载更多」才有内容
+    validations:
+      required: false

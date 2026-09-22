@@ -15,6 +15,15 @@
   "menuSiteToggle": {
     "message": "Open Download: Pause/resume capture for this site"
   },
+  "menuDownloadImage": {
+    "message": "Open Download: Download this image"
+  },
+  "commandToggleListening": {
+    "message": "Turn listening on/off"
+  },
+  "commandScrollCapture": {
+    "message": "Auto-scroll capture on the current page"
+  },
 
   "statCaptured": {
     "message": "Captured"
@@ -260,6 +269,60 @@
   "summaryVolumes": {
     "message": "packed into $1 volumes"
   },
+  "summaryVideoDirect": {
+    "message": "$1 videos downloaded individually"
+  },
+  "filterSortBy": {
+    "message": "Sort by"
+  },
+  "sortCapturedAt": {
+    "message": "Capture time"
+  },
+  "sortSharpness": {
+    "message": "Sharpness"
+  },
+  "filterMergeSimilar": {
+    "message": "Merge similar images"
+  },
+  "filterMergeSimilarHint": {
+    "message": "Analyzed locally, image by image; slower, and nothing is uploaded"
+  },
+  "mergeSimilarProgress": {
+    "message": "Analyzing $1/$2"
+  },
+  "mergeSimilarSummary": {
+    "message": "Analyzed $1, $2 could not be read (cross-origin or expired)"
+  },
+  "groupSimilarCount": {
+    "message": "$1 similar"
+  },
+  "tooltipExpandSimilar": {
+    "message": "Show all"
+  },
+  "tooltipCollapseSimilar": {
+    "message": "Show the sharpest only"
+  },
+  "tooltipGroupDisabledByMerge": {
+    "message": "Unavailable while merging similar images"
+  },
+  "errorPhashInProgress": {
+    "message": "An image analysis is already running, please retry later"
+  },
+  "errorNothingToAnalyze": {
+    "message": "No images to analyze"
+  },
+  "errorInvalidAnalysisParams": {
+    "message": "Invalid image analysis parameters"
+  },
+  "ratingPrompt": {
+    "message": "Finding it useful? Leave a rating"
+  },
+  "ratingAction": {
+    "message": "Rate"
+  },
+  "ratingDismiss": {
+    "message": "Don't show again"
+  },
   "summaryFailureReasons": {
     "message": "Failure reasons: $1"
   },
@@ -366,6 +429,12 @@
   },
   "optionsResetDone": {
     "message": "Defaults restored"
+  },
+  "optionsVideoDirect": {
+    "message": "Download videos individually (skip ZIP)"
+  },
+  "optionsVideoDirectHint": {
+    "message": "Videos are excluded from ZIP packing so large files cannot stall the whole batch; on by default"
   },
   "optionsSendCookies": {
     "message": "Send cookies when packing"

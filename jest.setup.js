@@ -137,6 +137,44 @@ global.chrome = {
     }
   },
 
+  action: {
+    _badgeText: '',
+    _badgeBackground: null,
+
+    async setBadgeText({ text }) {
+      global.chrome.action._badgeText = text ?? '';
+    },
+
+    async setBadgeBackgroundColor({ color }) {
+      global.chrome.action._badgeBackground = color;
+    },
+
+    _reset() {
+      global.chrome.action._badgeText = '';
+      global.chrome.action._badgeBackground = null;
+    }
+  },
+
+  commands: {
+    _listeners: new Set(),
+
+    onCommand: {
+      addListener(callback) {
+        global.chrome.commands._listeners.add(callback);
+      },
+      removeListener(callback) {
+        global.chrome.commands._listeners.delete(callback);
+      }
+    },
+
+    _trigger(command) {
+      global.chrome.commands._listeners.forEach(callback => callback(command));
+    },
+
+    // 与 contextMenus 同理：监听器在模块顶层注册，reset 时不能清空
+    _reset() {}
+  },
+
   runtime: {
     _messageListeners: new Set(),
     onMessage: {
@@ -306,4 +344,6 @@ beforeEach(() => {
   global.chrome.offscreen._reset();
   global.chrome.tabs._reset();
   global.chrome.contextMenus._reset();
+  global.chrome.action._reset();
+  global.chrome.commands._reset();
 });

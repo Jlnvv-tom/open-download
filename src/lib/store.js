@@ -24,7 +24,8 @@ class ImageStore {
   constructor() {
     this.images = [];       // 内存缓存
     this.settings = this._mergeSettings();
-    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0 };
+    // unread：自上次打开弹窗以来的新增捕获数，用于扩展图标角标
+    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0, unread: 0 };
     this._loaded = false;
   }
 
@@ -82,6 +83,9 @@ class ImageStore {
       source: image.source === 'dom' ? 'dom' : 'network',
       downloaded: Boolean(image.downloaded),
       status: image.status || 'pending',
+      // 内容级指标（V16-03）：老数据经 normalize 自动补空，无需迁移脚本
+      phash: image.phash || '',
+      sharpness: image.sharpness || 0,
     };
   }
 
@@ -231,13 +235,29 @@ class ImageStore {
       source: mediaData.source === 'dom' ? 'dom' : 'network',
       downloaded: false,
       status: 'pending', // pending | downloading | downloaded | failed
+      // 捕获期不算 hash（会拖慢扫描），统一留待按需计算后回填
+      phash: mediaData.phash || '',
+      sharpness: mediaData.sharpness || 0,
     };
 
     this.images.push(image);
     this.stats.total++;
+    this.stats.unread = (this.stats.unread || 0) + 1;
     this.saveImages(); // fire-and-forget
     this.saveStats();
     return image;
+  }
+
+  /**
+   * 清零未读计数（打开弹窗时调用，用于清空扩展图标角标）
+   * @returns {number} 清零后的值（恒为 0）
+   */
+  markCapturedRead() {
+    if (this.stats.unread !== 0) {
+      this.stats.unread = 0;
+      this.saveStats();
+    }
+    return 0;
   }
 
   /**
@@ -257,7 +277,8 @@ class ImageStore {
    */
   clearAll() {
     this.images = [];
-    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0 };
+    // 清空列表同时清空未读计数，否则角标会残留一个已不存在的数字
+    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0, unread: 0 };
     this.saveImages();
     this.saveStats();
   }
@@ -374,6 +395,36 @@ class ImageStore {
     return updatedCount;
   }
 
+  /**
+   * 写回内容级图像指标（V16-03）
+   * 计算失败的条目不会走到这里（保持空 hash / 0 分，不参与相似归并），
+   * 因此这里只需处理成功值，不做"写空"语义
+   *
+   * @param {string} id - 媒体 ID
+   * @param {Object} metrics - { phash, sharpness }
+   * @returns {boolean} 是否发生了变更
+   */
+  updateMediaMetrics(id, { phash = '', sharpness = 0 } = {}) {
+    const img = this.getImageById(id);
+    if (!img) return false;
+
+    let changed = false;
+    if (phash && img.phash !== phash) {
+      img.phash = phash;
+      changed = true;
+    }
+    if (sharpness > 0 && img.sharpness !== sharpness) {
+      img.sharpness = sharpness;
+      changed = true;
+    }
+
+    if (changed) {
+      this.saveImages();
+    }
+
+    return changed;
+  }
+
   // ─── Stats ───
 
   /**
@@ -382,7 +433,7 @@ class ImageStore {
    */
   async loadStats() {
     const result = await chrome.storage.local.get(STORAGE_KEYS.STATS);
-    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0, ...(result[STORAGE_KEYS.STATS] || {}) };
+    this.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0, unread: 0, ...(result[STORAGE_KEYS.STATS] || {}) };
   }
 
   /**

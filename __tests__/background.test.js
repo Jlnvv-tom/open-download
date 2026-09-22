@@ -9,7 +9,8 @@ import {
   handleRuntimeMessage,
   onRequestCompleted,
   isCaptureAllowed,
-  planTransfer
+  planTransfer,
+  resolveSitePlan
 } from '../src/background/index.js';
 
 function resetStoreSingleton() {
@@ -23,7 +24,7 @@ function resetStoreSingleton() {
       }
     }
   };
-  store.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0 };
+  store.stats = { total: 0, downloaded: 0, failed: 0, truncated: 0, unread: 0 };
   store._loaded = false;
 }
 
@@ -316,6 +317,93 @@ describe('background message handler', () => {
     expect(response).toEqual({ success: false, error: '当前页面不支持滚动抓取' });
   });
 
+  describe('站点适配器（V16-01）', () => {
+    test('GET_SITE_PLAN 命中规则时应该返回可序列化的提取计划', async () => {
+      const response = await sendBackgroundMessage({
+        type: MESSAGE_TYPES.GET_SITE_PLAN,
+        payload: {
+          pageUrl: 'https://zh.wikipedia.org/wiki/Open_Download',
+          pageDomain: 'zh.wikipedia.org'
+        }
+      });
+
+      expect(response.success).toBe(true);
+      expect(response.plan).toMatchObject({ ruleId: 'wikipedia', exclusive: true });
+      expect(response.plan.itemSelector).toContain('#mw-content-text');
+      // 计划要跨消息传递，必须能被 JSON 序列化
+      expect(JSON.parse(JSON.stringify(response.plan))).toEqual(response.plan);
+    });
+
+    test('GET_SITE_PLAN 未命中规则时应该返回 null', async () => {
+      const response = await sendBackgroundMessage({
+        type: MESSAGE_TYPES.GET_SITE_PLAN,
+        payload: { pageUrl: 'https://example.com/', pageDomain: 'example.com' }
+      });
+
+      expect(response).toEqual({ success: true, plan: null });
+    });
+
+    test('resolveSitePlan 对缺失 payload 应该安全返回 null', () => {
+      expect(resolveSitePlan()).toBeNull();
+      expect(resolveSitePlan({})).toBeNull();
+      expect(resolveSitePlan({ pageUrl: 'not a url', pageDomain: '' })).toBeNull();
+    });
+
+    test('DOM_MEDIA_UPDATE 上报 ruleMiss 时应该入库并按页面去重地告警', async () => {
+      await store.init();
+      await store.saveSettings({ enabled: true });
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const sendMessage = global.chrome.runtime.sendMessage;
+      global.chrome.runtime.sendMessage = jest.fn(async () => ({ success: true }));
+
+      const payload = {
+        pageUrl: 'https://zh.wikipedia.org/wiki/Broken',
+        pageDomain: 'zh.wikipedia.org',
+        pageTitle: 'Broken',
+        images: [{ url: 'https://upload.wikimedia.org/images/fallback.jpg', width: 10, height: 10 }],
+        videos: [],
+        ruleId: 'wikipedia',
+        ruleMiss: true
+      };
+
+      const first = await sendBackgroundMessage({ type: MESSAGE_TYPES.DOM_MEDIA_UPDATE, payload });
+      await sendBackgroundMessage({ type: MESSAGE_TYPES.DOM_MEDIA_UPDATE, payload });
+
+      // 规则失效也照样完成兜底入库，能力不倒退
+      expect(first).toEqual({ success: true, added: 1, updated: 0 });
+      expect(store.getImages()).toHaveLength(1);
+      expect(store.getImages()[0]).toMatchObject({ source: 'dom' });
+
+      // 同一页面只告警一次
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('wikipedia');
+      expect(warnSpy.mock.calls[0][0]).toContain('https://zh.wikipedia.org/wiki/Broken');
+
+      warnSpy.mockRestore();
+      global.chrome.runtime.sendMessage = sendMessage;
+    });
+
+    test('关闭捕获时不应该产生 ruleMiss 告警', async () => {
+      await store.init();
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await sendBackgroundMessage({
+        type: MESSAGE_TYPES.DOM_MEDIA_UPDATE,
+        payload: {
+          pageUrl: 'https://zh.wikipedia.org/wiki/Disabled',
+          pageDomain: 'zh.wikipedia.org',
+          images: [],
+          videos: [],
+          ruleId: 'wikipedia',
+          ruleMiss: true
+        }
+      });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+  });
+
   test('已删除的 CONTENT_IMAGES_UPDATE 应该命中未知消息分支', async () => {
     expect(MESSAGE_TYPES.CONTENT_IMAGES_UPDATE).toBeUndefined();
 
@@ -568,19 +656,35 @@ describe('background message handler', () => {
     expect(exportRes).toEqual({ success: false, error: 'Unknown message type' });
   });
 
-  describe('planTransfer（V15-01 批量下载策略）', () => {
+  describe('planTransfer（批量下载策略）', () => {
     test('普通批次应该走 ZIP 单卷', () => {
       const plan = planTransfer([{ id: '1', size: 1024 }, { id: '2', size: 2048 }], {});
 
       expect(plan.strategy).toBe('zip');
       expect(plan.volumes).toHaveLength(1);
       expect(plan.volumes[0]).toHaveLength(2);
+      expect(plan.directItems).toEqual([]);
     });
 
     test('单文件超阈值应该整批改直下', () => {
-      const plan = planTransfer([{ id: '1', size: 1024 }, { id: '2', size: 60 * 1024 * 1024 }], {});
+      const items = [{ id: '1', size: 1024 }, { id: '2', size: 60 * 1024 * 1024 }];
+      const plan = planTransfer(items, {});
 
-      expect(plan).toEqual({ strategy: 'direct', reason: 'large-file', volumes: [] });
+      expect(plan).toEqual({
+        strategy: 'direct',
+        reason: 'large-file',
+        volumes: [],
+        directItems: items
+      });
+    });
+
+    test('空批次应该安全返回空计划', () => {
+      expect(planTransfer([], {})).toEqual({
+        strategy: 'zip',
+        reason: '',
+        volumes: [],
+        directItems: []
+      });
     });
 
     test('整批预估超阈值应该改直下', () => {
@@ -601,8 +705,19 @@ describe('background message handler', () => {
       expect(plan.strategy).toBe('zip');
     });
 
-    test('size 未知的 DOM 视频应该按保守值估算并触发旁路', () => {
+    test('videoDirect 开启时 size 未知的 DOM 视频按视频拆分走直下', () => {
       const plan = planTransfer([{ id: '1', size: 0, mediaType: 'video', source: 'dom' }], {});
+
+      expect(plan.strategy).toBe('direct');
+      expect(plan.reason).toBe('video');
+      expect(plan.directItems.map(item => item.id)).toEqual(['1']);
+    });
+
+    test('关闭 videoDirect 后 size 未知的 DOM 视频回到保守估算并触发旁路', () => {
+      const plan = planTransfer(
+        [{ id: '1', size: 0, mediaType: 'video', source: 'dom' }],
+        { transfer: { videoDirect: false } }
+      );
 
       expect(plan.strategy).toBe('direct');
       expect(plan.reason).toBe('large-file');
@@ -638,6 +753,70 @@ describe('background message handler', () => {
 
       expect(planTransfer(items, {}).strategy).toBe('zip');
       expect(planTransfer(items, { transfer: { bypassFileSize: 1024 } }).strategy).toBe('direct');
+    });
+
+    test('videoDirect 默认开启时纯视频批次整批直下', () => {
+      const video = { id: 'v1', size: 10 * 1024 * 1024, mediaType: 'video' };
+      const plan = planTransfer([video], {});
+
+      expect(plan.strategy).toBe('direct');
+      expect(plan.reason).toBe('video');
+      expect(plan.volumes).toEqual([]);
+      expect(plan.directItems).toEqual([video]);
+    });
+
+    test('混合批次应该拆成视频直下 + 图片打包', () => {
+      const video = { id: 'v1', size: 10 * 1024 * 1024, mediaType: 'video' };
+      const first = { id: 'i1', size: 1024, mediaType: 'image' };
+      const second = { id: 'i2', size: 2048, mediaType: 'image' };
+
+      const plan = planTransfer([video, first, second], {});
+
+      expect(plan.strategy).toBe('mixed');
+      expect(plan.reason).toBe('video');
+      expect(plan.directItems).toEqual([video]);
+      expect(plan.volumes).toHaveLength(1);
+      expect(plan.volumes[0]).toEqual([first, second]);
+    });
+
+    test('混合批次里出现超大图片时应该整批直下，不再产出两种产物', () => {
+      const video = { id: 'v1', size: 10 * 1024 * 1024, mediaType: 'video' };
+      const huge = { id: 'i1', size: 60 * 1024 * 1024, mediaType: 'image' };
+
+      const plan = planTransfer([video, huge], {});
+
+      expect(plan.strategy).toBe('direct');
+      expect(plan.reason).toBe('large-file');
+      expect(plan.directItems).toEqual([video, huge]);
+      expect(plan.volumes).toEqual([]);
+    });
+
+    test('关闭 videoDirect 后视频回到与图片相同的阈值逻辑', () => {
+      const items = [
+        { id: 'v1', size: 10 * 1024 * 1024, mediaType: 'video' },
+        { id: 'i1', size: 1024, mediaType: 'image' }
+      ];
+
+      const plan = planTransfer(items, { transfer: { videoDirect: false } });
+
+      expect(plan.strategy).toBe('zip');
+      expect(plan.directItems).toEqual([]);
+      expect(plan.volumes[0]).toEqual(items);
+    });
+
+    test('混合批次的分卷上限只约束图片部分', () => {
+      const video = { id: 'v1', size: 1024, mediaType: 'video' };
+      const images = Array.from({ length: 3 }, (_, index) => ({
+        id: `i${index}`,
+        size: 10,
+        mediaType: 'image'
+      }));
+
+      const plan = planTransfer([video, ...images], { transfer: { maxZipFiles: 2 } });
+
+      expect(plan.strategy).toBe('mixed');
+      expect(plan.directItems).toEqual([video]);
+      expect(plan.volumes.map(volume => volume.length)).toEqual([2, 1]);
     });
   });
 
@@ -793,27 +972,439 @@ describe('background message handler', () => {
     global.chrome.downloads.download = realDownload;
   });
 
-  test('DOWNLOAD_SELECTED 应该收敛到统一编排并走直下', async () => {
+  test('已删除的 DOWNLOAD_SELECTED 应该命中未知消息分支', async () => {
+    // V16-02 起该消息被删除：显式整批直下改由 DOWNLOAD_ZIP + strategy='direct' 承担
+    expect(MESSAGE_TYPES.DOWNLOAD_SELECTED).toBeUndefined();
+
+    const response = await sendBackgroundMessage({
+      type: 'DOWNLOAD_SELECTED',
+      payload: { ids: ['whatever'] }
+    });
+
+    expect(response).toEqual({ success: false, error: 'Unknown message type' });
+  });
+
+  test('DOWNLOAD_ZIP 混合批次应该先直下视频再打包图片', async () => {
     await store.init();
+    await store.saveSettings({ enabled: true });
 
     const realDownload = global.chrome.downloads.download;
-    global.chrome.downloads.download = jest.fn(realDownload.bind(global.chrome.downloads));
+    const downloadSpy = jest.fn(realDownload.bind(global.chrome.downloads));
+    global.chrome.downloads.download = downloadSpy;
 
-    const media = store.addMedia({
-      url: 'https://cdn.example.com/images/selected.jpg',
-      filename: 'selected.jpg'
+    const video = store.addMedia({
+      mediaType: 'video',
+      url: 'https://cdn.example.com/v/clip.mp4',
+      filename: 'clip.mp4',
+      size: 10 * 1024 * 1024
+    });
+    const image = store.addMedia({
+      url: 'https://cdn.example.com/i/pic.jpg',
+      filename: 'pic.jpg',
+      size: 2048
+    });
+
+    const realCreate = global.chrome.offscreen.createDocument.bind(global.chrome.offscreen);
+    global.chrome.offscreen.createDocument = async (options) => {
+      await realCreate(options);
+      dispatchToBackground({ type: MESSAGE_TYPES.ZIP_OFFSCREEN_READY });
+    };
+
+    const realSendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = async (message) => {
+      if (message.type === MESSAGE_TYPES.ZIP_BUILD_REQUEST) {
+        // 打包请求里只应该出现图片，视频已经单独直下
+        expect(message.payload.items.map(item => item.id)).toEqual([image.id]);
+        dispatchToBackground({
+          type: MESSAGE_TYPES.ZIP_BUILD_RESULT,
+          payload: {
+            zipName: message.payload.zipName,
+            blobUrl: 'blob:mock-mixed',
+            succeeded: 1,
+            failed: 0,
+            succeededIds: [image.id],
+            failedItems: []
+          }
+        });
+        return { received: true };
+      }
+      return { success: true };
+    };
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.DOWNLOAD_ZIP,
+      payload: { ids: [video.id, image.id] }
+    });
+
+    expect(response).toMatchObject({
+      success: true,
+      strategy: 'mixed',
+      succeeded: 2,
+      failed: 0,
+      directSucceeded: 1
+    });
+    expect(response.volumes).toHaveLength(1);
+    // 先直下视频、再触发一次 offscreen 打包
+    expect(downloadSpy.mock.calls[0][0].url).toBe(video.url);
+    expect(downloadSpy.mock.calls[1][0].url).toBe('blob:mock-mixed');
+    expect(global.chrome.offscreen._created).toBe(1);
+    expect(store.getMediaById(video.id)).toMatchObject({ status: 'downloaded' });
+    expect(store.getMediaById(image.id)).toMatchObject({ status: 'downloaded' });
+
+    global.chrome.runtime.sendMessage = realSendMessage;
+    global.chrome.offscreen.createDocument = realCreate;
+    global.chrome.downloads.download = realDownload;
+  });
+
+  test('PHASH_REQUEST 应该驱动 offscreen 计算并写回指标', async () => {
+    await store.init();
+
+    const image = store.addMedia({
+      url: 'https://cdn.example.com/images/similar.jpg',
+      filename: 'similar.jpg'
+    });
+
+    const realCreate = global.chrome.offscreen.createDocument.bind(global.chrome.offscreen);
+    global.chrome.offscreen.createDocument = async (options) => {
+      await realCreate(options);
+      dispatchToBackground({ type: MESSAGE_TYPES.ZIP_OFFSCREEN_READY });
+    };
+
+    const broadcasts = [];
+    const realSendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = async (message) => {
+      if (message.type === MESSAGE_TYPES.PHASH_REQUEST) {
+        expect(message.payload.items).toEqual([{ id: image.id, url: image.url }]);
+        dispatchToBackground({
+          type: MESSAGE_TYPES.PHASH_RESULT,
+          payload: { id: image.id, phash: 'abcdef0123456789', sharpness: 42, done: 1, total: 1 }
+        });
+        return { received: true };
+      }
+      if (message.type === MESSAGE_TYPES.PHASH_STATE) {
+        broadcasts.push(message.payload);
+      }
+      return { success: true };
+    };
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.PHASH_REQUEST,
+      payload: { ids: [image.id] }
+    });
+
+    expect(response).toEqual({ success: true, total: 1, analyzed: 1, failed: 0, timedOut: false });
+    expect(store.getMediaById(image.id)).toMatchObject({ phash: 'abcdef0123456789', sharpness: 42 });
+    expect(global.chrome.offscreen._created).toBe(1);
+    // 进度先报 running=true，收尾时再报一次 running=false
+    expect(broadcasts[0]).toMatchObject({ running: true, done: 1, total: 1 });
+    expect(broadcasts.at(-1)).toMatchObject({ running: false, done: 1, total: 1, failed: 0 });
+
+    global.chrome.runtime.sendMessage = realSendMessage;
+    global.chrome.offscreen.createDocument = realCreate;
+  });
+
+  test('PHASH_REQUEST 只应该接受图片', async () => {
+    await store.init();
+    const video = store.addMedia({
+      mediaType: 'video',
+      url: 'https://cdn.example.com/v/clip.mp4',
+      filename: 'clip.mp4'
     });
 
     const response = await sendBackgroundMessage({
-      type: MESSAGE_TYPES.DOWNLOAD_SELECTED,
-      payload: { ids: [media.id] }
+      type: MESSAGE_TYPES.PHASH_REQUEST,
+      payload: { ids: [video.id] }
     });
 
-    expect(response).toMatchObject({ success: true, strategy: 'direct', succeeded: 1 });
+    expect(response.success).toBe(false);
+    expect(response.error).toBeTruthy();
+    // 没有可分析的图片时不应该白创建 offscreen 文档
     expect(global.chrome.offscreen._created).toBe(0);
-    expect(store.getMediaById(media.id)).toMatchObject({ status: 'downloaded' });
+  });
 
-    global.chrome.downloads.download = realDownload;
+  test('已有分析进行中时应该拒绝新请求', async () => {
+    await store.init();
+    const image = store.addMedia({ url: 'https://cdn.example.com/images/pending.jpg' });
+
+    const realCreate = global.chrome.offscreen.createDocument.bind(global.chrome.offscreen);
+    global.chrome.offscreen.createDocument = async (options) => {
+      await realCreate(options);
+      dispatchToBackground({ type: MESSAGE_TYPES.ZIP_OFFSCREEN_READY });
+    };
+
+    const realSendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = async () => ({ received: true });
+
+    const first = sendBackgroundMessage({
+      type: MESSAGE_TYPES.PHASH_REQUEST,
+      payload: { ids: [image.id] }
+    });
+    // 等第一次请求完成 offscreen 准备并挂起
+    await sleep(0);
+
+    const second = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.PHASH_REQUEST,
+      payload: { ids: [image.id] }
+    });
+
+    expect(second.success).toBe(false);
+    expect(second.error).toBeTruthy();
+
+    // 收尾第一次请求，避免留下悬挂的定时器
+    dispatchToBackground({
+      type: MESSAGE_TYPES.PHASH_RESULT,
+      payload: { id: image.id, phash: 'ffffffffffffffff', sharpness: 7 }
+    });
+    await expect(first).resolves.toMatchObject({ success: true, analyzed: 1 });
+
+    global.chrome.runtime.sendMessage = realSendMessage;
+    global.chrome.offscreen.createDocument = realCreate;
+  });
+
+  test('计算失败的条目应该计入失败且不影响其它条目', async () => {
+    await store.init();
+
+    const ok = store.addMedia({ url: 'https://cdn.example.com/images/ok.jpg' });
+    const bad = store.addMedia({ url: 'https://cdn.example.com/images/bad.jpg' });
+
+    const realCreate = global.chrome.offscreen.createDocument.bind(global.chrome.offscreen);
+    global.chrome.offscreen.createDocument = async (options) => {
+      await realCreate(options);
+      dispatchToBackground({ type: MESSAGE_TYPES.ZIP_OFFSCREEN_READY });
+    };
+
+    const realSendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = async (message) => {
+      if (message.type === MESSAGE_TYPES.PHASH_REQUEST) {
+        dispatchToBackground({
+          type: MESSAGE_TYPES.PHASH_RESULT,
+          payload: { id: ok.id, phash: 'abcdef0123456789', sharpness: 12, done: 1, total: 2 }
+        });
+        dispatchToBackground({
+          type: MESSAGE_TYPES.PHASH_RESULT,
+          payload: { id: bad.id, error: 'HTTP 403', done: 2, total: 2 }
+        });
+        return { received: true };
+      }
+      return { success: true };
+    };
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.PHASH_REQUEST,
+      payload: { ids: [ok.id, bad.id] }
+    });
+
+    expect(response).toEqual({ success: true, total: 2, analyzed: 1, failed: 1, timedOut: false });
+    expect(store.getMediaById(ok.id)).toMatchObject({ phash: 'abcdef0123456789', sharpness: 12 });
+    expect(store.getMediaById(bad.id).phash).toBe('');
+
+    global.chrome.runtime.sendMessage = realSendMessage;
+    global.chrome.offscreen.createDocument = realCreate;
+  });
+
+  describe('增长功能（V16-04）', () => {
+    function spyDownloads() {
+      const realDownload = global.chrome.downloads.download;
+      const spy = jest.fn(realDownload.bind(global.chrome.downloads));
+      global.chrome.downloads.download = spy;
+      return { spy, restore: () => { global.chrome.downloads.download = realDownload; } };
+    }
+
+    test('捕获到新媒体应该更新角标，超过 999 显示 999+', async () => {
+      await store.init();
+      await store.saveSettings({ enabled: true });
+      const sendMessage = global.chrome.runtime.sendMessage;
+      global.chrome.runtime.sendMessage = jest.fn(async () => ({ success: true }));
+
+      await onRequestCompleted({
+        type: 'image',
+        url: 'https://cdn.example.com/assets/badge.jpg',
+        tabId: 7,
+        responseHeaders: [{ name: 'Content-Type', value: 'image/jpeg' }]
+      });
+      expect(global.chrome.action._badgeText).toBe('1');
+
+      store.stats.unread = 999;
+      await onRequestCompleted({
+        type: 'image',
+        url: 'https://cdn.example.com/assets/badge-2.jpg',
+        tabId: 7,
+        responseHeaders: [{ name: 'Content-Type', value: 'image/jpeg' }]
+      });
+      expect(global.chrome.action._badgeText).toBe('999+');
+
+      global.chrome.runtime.sendMessage = sendMessage;
+    });
+
+    test('MARK_CAPTURED_READ 应该清零未读并清空角标', async () => {
+      await store.init();
+      store.addMedia({ url: 'https://cdn.example.com/images/unread.jpg' });
+      expect(store.getStats().unread).toBe(1);
+
+      const response = await sendBackgroundMessage({ type: MESSAGE_TYPES.MARK_CAPTURED_READ });
+
+      expect(response).toEqual({ success: true, unread: 0 });
+      expect(store.getStats().unread).toBe(0);
+      expect(global.chrome.action._badgeText).toBe('');
+    });
+
+    test('清空列表应该同时清空格标', async () => {
+      await store.init();
+      store.addMedia({ url: 'https://cdn.example.com/images/to-clear.jpg' });
+      global.chrome.action._badgeText = '1';
+
+      await sendBackgroundMessage({ type: MESSAGE_TYPES.CLEAR_IMAGES });
+
+      expect(global.chrome.action._badgeText).toBe('');
+      expect(store.getStats().unread).toBe(0);
+    });
+
+    test('右键「下载此图」应该入库并立即下载', async () => {
+      await store.init();
+      await store.saveSettings({ enabled: true });
+      const { spy, restore } = spyDownloads();
+      const realSendMessage = global.chrome.runtime.sendMessage;
+      const sendMessage = jest.fn(async () => ({ success: true }));
+      global.chrome.runtime.sendMessage = sendMessage;
+
+      global.chrome.contextMenus._trigger(
+        {
+          menuItemId: 'open-download-image',
+          srcUrl: 'https://cdn.example.com/pic/hero.jpg',
+          pageUrl: 'https://example.com/page'
+        },
+        { title: 'Example Page' }
+      );
+      await sleep(200);
+
+      expect(store.getImages()).toHaveLength(1);
+      expect(store.getImages()[0]).toMatchObject({
+        source: 'dom',
+        mediaType: 'image',
+        url: 'https://cdn.example.com/pic/hero.jpg',
+        tabUrl: 'https://example.com/page',
+        tabTitle: 'Example Page'
+      });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0].url).toBe('https://cdn.example.com/pic/hero.jpg');
+      expect(sendMessage).toHaveBeenCalledWith({
+        type: MESSAGE_TYPES.MEDIA_FOUND,
+        payload: store.getImages()[0]
+      });
+
+      global.chrome.runtime.sendMessage = realSendMessage;
+      restore();
+    });
+
+    test('右键「下载此图」对已存在的资源应该复用记录而不重复入库', async () => {
+      await store.init();
+      await store.saveSettings({ enabled: true });
+      const existing = store.addMedia({
+        url: 'https://cdn.example.com/pic/dup.jpg',
+        filename: 'dup.jpg'
+      });
+      const { spy, restore } = spyDownloads();
+
+      global.chrome.contextMenus._trigger(
+        {
+          menuItemId: 'open-download-image',
+          srcUrl: 'https://cdn.example.com/pic/dup.jpg',
+          pageUrl: 'https://example.com/page'
+        },
+        {}
+      );
+      await sleep(200);
+
+      expect(store.getImages()).toHaveLength(1);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(store.getImageById(existing.id)).toMatchObject({ status: 'downloaded' });
+
+      restore();
+    });
+
+    test('右键「下载此图」对 blob:/data: 资源应该跳过', async () => {
+      await store.init();
+      await store.saveSettings({ enabled: true });
+      const { spy, restore } = spyDownloads();
+
+      global.chrome.contextMenus._trigger(
+        { menuItemId: 'open-download-image', srcUrl: 'blob:https://example.com/6f1c', pageUrl: 'https://example.com/' },
+        {}
+      );
+      global.chrome.contextMenus._trigger(
+        { menuItemId: 'open-download-image', srcUrl: 'data:image/png;base64,iVBORw0KGgo', pageUrl: 'https://example.com/' },
+        {}
+      );
+      await sleep(50);
+
+      expect(store.getImages()).toHaveLength(0);
+      expect(spy).not.toHaveBeenCalled();
+
+      restore();
+    });
+
+    test('站点被暂停时右键下载应该只下载不入库', async () => {
+      await store.init();
+      await store.saveSettings({ enabled: true, siteRules: { 'example.com': 'block' } });
+      const { spy, restore } = spyDownloads();
+
+      global.chrome.contextMenus._trigger(
+        {
+          menuItemId: 'open-download-image',
+          srcUrl: 'https://cdn.example.com/pic/paused.jpg',
+          pageUrl: 'https://example.com/page'
+        },
+        {}
+      );
+      await sleep(200);
+
+      expect(store.getImages()).toHaveLength(0);
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      restore();
+    });
+
+    test('快捷键 toggle-listening 应该切换监听并广播状态', async () => {
+      await store.init();
+      const realSendMessage = global.chrome.runtime.sendMessage;
+      const sendMessage = jest.fn(async () => ({ success: true }));
+      global.chrome.runtime.sendMessage = sendMessage;
+
+      global.chrome.commands._trigger('toggle-listening');
+      await sleep(20);
+      expect(store.getSettings().enabled).toBe(true);
+      expect(sendMessage).toHaveBeenCalledWith({
+        type: MESSAGE_TYPES.TOGGLE_LISTENING,
+        payload: { enabled: true }
+      });
+
+      global.chrome.commands._trigger('toggle-listening');
+      await sleep(20);
+      expect(store.getSettings().enabled).toBe(false);
+
+      global.chrome.runtime.sendMessage = realSendMessage;
+    });
+
+    test('快捷键 scroll-capture 应该路由到活动标签页', async () => {
+      await store.init();
+      global.chrome.tabs._setActiveTab({ id: 88, url: 'https://example.com/list', title: 'List' });
+
+      global.chrome.commands._trigger('scroll-capture');
+      await sleep(20);
+
+      expect(global.chrome.tabs._sentMessages).toEqual([
+        { tabId: 88, message: { type: MESSAGE_TYPES.SCROLL_CAPTURE_START } }
+      ]);
+    });
+
+    test('未知快捷键命令应该被忽略', async () => {
+      await store.init();
+
+      global.chrome.commands._trigger('not-a-command');
+      await sleep(10);
+
+      expect(store.getSettings().enabled).toBe(false);
+    });
   });
 
   test('DOWNLOAD_ZIP 应该在 offscreen 打包并触发下载', async () => {

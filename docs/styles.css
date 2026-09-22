@@ -475,6 +475,182 @@ a:hover {
   color: var(--text-secondary);
 }
 
+/* ─── Guide Pages（V16-05 场景化教程，全部使用本地资源） ─── */
+
+.guide-inner {
+  max-width: 760px;
+}
+
+.guide-breadcrumb {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.guide h1 {
+  font-size: 30px;
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+
+.guide-lead {
+  font-size: 16px;
+  line-height: 1.9;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.guide-toc {
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  margin-bottom: 28px;
+}
+
+.guide-toc p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.guide-toc ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.guide-toc li {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.guide h2 {
+  font-size: 21px;
+  margin: 36px 0 12px;
+}
+
+.guide h3 {
+  font-size: 16px;
+  margin: 22px 0 8px;
+}
+
+.guide p,
+.guide li {
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.guide p {
+  margin: 12px 0;
+}
+
+.guide ol,
+.guide ul {
+  padding-left: 22px;
+  margin: 12px 0;
+}
+
+.guide li {
+  margin: 6px 0;
+}
+
+.guide code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+
+.guide-note {
+  border-left: 3px solid var(--primary);
+  padding: 10px 16px;
+  margin: 18px 0;
+  border-radius: 0 8px 8px 0;
+  background: var(--bg-alt);
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.guide-figure {
+  margin: 20px 0;
+}
+
+.guide-figure-slot {
+  padding: 28px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.guide-figure figcaption {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.guide-cta {
+  margin-top: 36px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
+}
+
+.guide-cta h2 {
+  margin-top: 0;
+}
+
+.guide-related {
+  margin-top: 30px;
+  font-size: 14px;
+}
+
+.guide-related ul {
+  margin-top: 8px;
+}
+
+.guide-faq {
+  margin-top: 32px;
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.guide-card {
+  display: block;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: inherit;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.guide-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.guide-card h3 {
+  margin: 0 0 8px;
+  color: var(--primary);
+}
+
+.guide-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
 /* ─── Responsive ─── */
 
 @media (max-width: 640px) {

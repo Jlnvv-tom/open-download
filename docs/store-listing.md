@@ -2,7 +2,7 @@
 
 本文件是上架提交时的文案与素材清单，内容必须与 `src/manifest.json` 的权限声明、`docs/privacy.html` 的隐私政策保持一致。**任何一项改动后需要同步核对另外两项。**
 
-- 目标版本：1.5.0
+- 目标版本：1.6.0
 - 隐私政策 URL：`https://<GitHub Pages 域名>/privacy.html`（由 Deploy Docs 工作流部署 `docs/` 目录后可得）
 - 单一用途说明：在浏览器本地捕获网页加载的图片与视频资源，并提供筛选、预览与批量下载。
 
@@ -87,7 +87,10 @@ Open Download watches network activity in the background and records every image
 ## 6. 提交前检查清单
 
 1. `npm test` 全绿、`npm run build` 通过、`npm run pack` 产物解压后不含 `__tests__/`、`docs/`、`node_modules/`。
-2. `src/manifest.json` 的 `version` 为 `1.5.0`，`default_locale` 为 `zh_CN`，权限清单与第 3 节逐条一致。
+2. `src/manifest.json` 的 `version` 为 `1.6.0`，`default_locale` 为 `zh_CN`，权限清单与第 3 节逐条一致（`commands` 是顶层字段，不计入 `permissions`）。
 3. `docs/privacy.html` 已部署且可访问，内容与第 3、4 节自洽。
 4. 商店描述、截图文案与实际功能一致（尤其是「大文件旁路」「分卷」「携带 Cookie 默认关闭」三处表述）。
 5. 构建产物在 Chrome 中加载后，Popup / Options / 右键菜单在英文与中文环境下均无裸露 i18n key。
+6. **替换商店 ID 占位**：`grep -rn EXTENSION_ID_PLACEHOLDER docs/` 应无输出。拿到商店分配的扩展 ID 后，把占位符换成真实 ID（涉及 `docs/index.html`、`docs/guides/*.html`、`docs/en/guides/index.html` 的页脚评分链接）。扩展内部的评分入口不需要替换：它用 `chrome.runtime.id` 拼接，上架后自动指向正确页面。
+7. **提交后回填**：把商店详情页 URL 写进 `docs/index.html` 的安装区块（当前安装方式一/方式二为源码与 Releases 安装，上架后可增加「商店安装」方式一）。
+8. 教程内容与实际功能一致：`docs/guides/` 三篇教程只写已发布功能；若截图尚未产出，保留 `.guide-figure-slot` 的截图位（不得引用外链图片）。

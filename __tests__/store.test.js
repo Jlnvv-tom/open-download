@@ -116,6 +116,52 @@ describe('ImageStore', () => {
     });
   });
 
+  describe('内容级指标', () => {
+    beforeEach(async () => {
+      await testStore.init();
+    });
+
+    test('新增记录应该带空 hash 与 0 分清晰度', () => {
+      const media = testStore.addMedia({ url: 'https://cdn.example.com/metrics.jpg' });
+
+      expect(media.phash).toBe('');
+      expect(media.sharpness).toBe(0);
+    });
+
+    test('缺少指标字段的老数据应该经 normalize 补默认值', async () => {
+      await global.chrome.storage.local.set({
+        captured_images: [{ id: 'legacy-metrics', url: 'https://cdn.example.com/legacy.jpg' }]
+      });
+
+      const legacyStore = new ImageStore();
+      await legacyStore.init();
+
+      expect(legacyStore.getImageById('legacy-metrics')).toMatchObject({ phash: '', sharpness: 0 });
+    });
+
+    test('updateMediaMetrics 应该写回指标并持久化', async () => {
+      const media = testStore.addMedia({ url: 'https://cdn.example.com/metrics.jpg' });
+
+      expect(testStore.updateMediaMetrics(media.id, { phash: 'abcdef0123456789', sharpness: 42 })).toBe(true);
+      expect(testStore.getImageById(media.id)).toMatchObject({ phash: 'abcdef0123456789', sharpness: 42 });
+
+      // saveImages 是 fire-and-forget，等一个宏任务让写入落地
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const stored = await global.chrome.storage.local.get('captured_images');
+      expect(stored.captured_images.find(item => item.id === media.id))
+        .toMatchObject({ phash: 'abcdef0123456789', sharpness: 42 });
+    });
+
+    test('updateMediaMetrics 对未知 id 与空值应该安全', () => {
+      expect(testStore.updateMediaMetrics('missing-id', { phash: 'abcd', sharpness: 5 })).toBe(false);
+
+      const media = testStore.addMedia({ url: 'https://cdn.example.com/metrics.jpg' });
+      // 空值表示「未算出」，既不该改坏已有值，也不算变更
+      expect(testStore.updateMediaMetrics(media.id, { phash: '', sharpness: 0 })).toBe(false);
+      expect(testStore.updateMediaMetrics(media.id, {})).toBe(false);
+    });
+  });
+
   describe('站点规则与分组设置', () => {
     beforeEach(async () => {
       await testStore.init();
@@ -126,6 +172,20 @@ describe('ImageStore', () => {
       expect(settings.siteRules).toEqual({});
       expect(settings.ui.groupByPage).toBe(false);
       expect(settings.ui.sourceFilter).toBe('all');
+      // V16-03 / V16-05 新增的 ui 字段
+      expect(settings.ui.mergeSimilar).toBe(false);
+      expect(settings.ui.sortBy).toBe('capturedAt');
+      expect(settings.ui.ratingPromptShown).toBe(false);
+    });
+
+    test('部分提交 ui 不应该清掉其它 ui 字段', async () => {
+      await testStore.saveSettings({ ui: { ratingPromptShown: true } });
+      await testStore.saveSettings({ ui: { sortBy: 'sharpness' } });
+
+      const settings = testStore.getSettings();
+      expect(settings.ui.ratingPromptShown).toBe(true);
+      expect(settings.ui.sortBy).toBe('sharpness');
+      expect(settings.ui.viewMode).toBe('list');
     });
 
     test('siteRules 应该整表替换而不是键级合并', async () => {
@@ -154,6 +214,34 @@ describe('ImageStore', () => {
     test('sendCookies 应该可持久化', async () => {
       await testStore.saveSettings({ sendCookies: true });
       expect(testStore.getSettings().sendCookies).toBe(true);
+    });
+
+    test('未读计数应该随新增捕获递增并在标记已读后清零', () => {
+      expect(testStore.getStats().unread).toBe(0);
+
+      testStore.addMedia({ url: 'https://cdn.example.com/a.jpg' });
+      testStore.addMedia({ url: 'https://cdn.example.com/b.jpg' });
+      expect(testStore.getStats().unread).toBe(2);
+
+      expect(testStore.markCapturedRead()).toBe(0);
+      expect(testStore.getStats().unread).toBe(0);
+    });
+
+    test('清空列表应该同时清空未读计数', () => {
+      testStore.addMedia({ url: 'https://cdn.example.com/c.jpg' });
+      expect(testStore.getStats().unread).toBe(1);
+
+      testStore.clearAll();
+      expect(testStore.getStats().unread).toBe(0);
+    });
+
+    test('去重拦截的新增不应该计入未读', () => {
+      testStore.addMedia({ url: 'https://cdn.example.com/dup.jpg' });
+      expect(testStore.getStats().unread).toBe(1);
+
+      // 同一 URL 被 dedupe 拦截，addMedia 返回 null
+      expect(testStore.addMedia({ url: 'https://cdn.example.com/dup.jpg' })).toBeNull();
+      expect(testStore.getStats().unread).toBe(1);
     });
 
     test('ui.groupByPage / ui.sourceFilter 应该持久化且不影响其他 ui 字段', async () => {
