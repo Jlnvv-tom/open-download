@@ -26,6 +26,14 @@ const el = {
   ratingRow: $('#rating-row'),
   btnRatingOpen: $('#btn-rating-open'),
   btnRatingClose: $('#btn-rating-close'),
+  btnSettings: $('#btn-settings'),
+  switchLabel: $('#switch-label'),
+  selectionSummary: $('#selection-summary'),
+  selectionSummaryText: $('#selection-summary-text'),
+  btnDownloadMenu: $('#btn-download-menu'),
+  strategyMenu: $('#strategy-menu'),
+  btnDownloadSelectedCount: $('#btn-download-selected-count'),
+  btnDownloadAllCount: $('#btn-download-all-count'),
   capacityHint: $('#capacity-hint'),
   statTotal: $('#stat-total'),
   statDownloaded: $('#stat-downloaded'),
@@ -91,6 +99,8 @@ const collapsedGroups = new Set();
 const expandedGroups = new Set();
 // 累计成功下载数达到该值后才考虑展示一次评分引导（V16-05）
 const RATING_PROMPT_THRESHOLD = 20;
+// 「下载选中」的传输策略：内存态（popup 关闭后重置为 auto，不写入 settings）
+let downloadStrategy = 'auto';
 const DEFAULT_CONTENT_SIZE = 104;
 let contentSize = DEFAULT_CONTENT_SIZE;
 const EAGER_PREVIEW_COUNT = 36;
@@ -374,13 +384,42 @@ function bindEvents() {
     URL.revokeObjectURL(url);
   });
 
+  el.btnSettings.addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  el.btnDownloadMenu.addEventListener('click', () => {
+    toggleStrategyMenu();
+  });
+
+  el.strategyMenu.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-strategy]');
+    if (!button) return;
+    downloadStrategy = button.dataset.strategy;
+    el.strategyMenu.querySelectorAll('[data-strategy]').forEach(option => {
+      option.classList.toggle('active', option === button);
+    });
+    closeStrategyMenu();
+  });
+
+  // 策略菜单与筛选浮层一样，支持点击外部与 Esc 关闭
+  document.addEventListener('click', (event) => {
+    if (!el.strategyMenu.classList.contains('open')) return;
+    if (el.strategyMenu.contains(event.target) || el.btnDownloadMenu.contains(event.target)) return;
+    closeStrategyMenu();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeStrategyMenu();
+  });
+
   el.btnDownloadSelected.addEventListener('click', async () => {
     const selected = allMedia.filter(media => selectedIds.has(media.id));
     if (selected.length === 0) {
       alert(t('alertNoSelection'));
       return;
     }
-    await downloadMediaAsZip(selected, el.btnDownloadSelected, t('btnDownloadSelected'));
+    await downloadMediaAsZip(selected, el.btnDownloadSelected, t('btnDownloadSelected'), downloadStrategy);
   });
 
   el.btnDownloadAll.addEventListener('click', async () => {
@@ -463,7 +502,7 @@ function bindEvents() {
         const { done = 0, total = 0, volume, volumes } = message.payload || {};
         zipProgressSeen = true;
         const volumePrefix = volumes > 1 ? `${t('progressVolume', volume, volumes)} ` : '';
-        activeZipButton.textContent = `${volumePrefix}${t('progressPacking', done, total)}`;
+        setButtonText(activeZipButton, `${volumePrefix}${t('progressPacking', done, total)}`);
       }
     }
     if (message.type === MESSAGE_TYPES.DOWNLOAD_STATUS_CHANGED) {
@@ -475,7 +514,7 @@ function bindEvents() {
       // 逐条直下没有 ZIP 进度事件，用状态流转驱动按钮计数
       if (activeZipButton && !zipProgressSeen && ['downloaded', 'failed'].includes(status)) {
         activeZipCompleted = Math.min(activeZipCompleted + 1, activeZipTotal);
-        activeZipButton.textContent = t('progressProcessing', activeZipCompleted, activeZipTotal);
+        setButtonText(activeZipButton, t('progressProcessing', activeZipCompleted, activeZipTotal));
       }
     }
     if (message.type === MESSAGE_TYPES.SITE_RULES_CHANGED) {
@@ -640,18 +679,35 @@ let activeZipTotal = 0;
 let activeZipCompleted = 0;
 let zipProgressSeen = false;
 
-async function downloadMediaAsZip(mediaItems, button, defaultText) {
+/**
+ * 更新按钮文案
+ * 下载按钮内部有独立的 .btn-label 与计数 span，直接写 button.textContent
+ * 会把结构整个冲掉，因此只写 label；没有 label 的旧结构按钮退回整写
+ */
+function setButtonText(button, text) {
+  const label = button?.querySelector('.btn-label');
+  (label || button).textContent = text;
+}
+
+/**
+ * 批量下载
+ * @param {string} [strategy='auto'] - 传输策略：auto（后台判定）/ zip / direct
+ */
+async function downloadMediaAsZip(mediaItems, button, defaultText, strategy = 'auto') {
   button.disabled = true;
   activeZipButton = button;
   activeZipTotal = mediaItems.length;
   activeZipCompleted = 0;
   zipProgressSeen = false;
-  button.textContent = t('progressProcessing', 0, activeZipTotal);
+  closeStrategyMenu();
+  setButtonText(button, t('progressProcessing', 0, activeZipTotal));
 
   try {
-    const result = await sendMessage(MESSAGE_TYPES.DOWNLOAD_ZIP, {
-      ids: mediaItems.map(media => media.id),
-    });
+    const payload = { ids: mediaItems.map(media => media.id) };
+    // auto 不传 strategy，让后台按阈值判定
+    if (strategy !== 'auto') payload.strategy = strategy;
+
+    const result = await sendMessage(MESSAGE_TYPES.DOWNLOAD_ZIP, payload);
 
     if (result.success) {
       alert(formatDownloadSummary(result));
@@ -664,7 +720,7 @@ async function downloadMediaAsZip(mediaItems, button, defaultText) {
   } finally {
     activeZipButton = null;
     button.disabled = false;
-    button.textContent = defaultText;
+    setButtonText(button, defaultText);
   }
 }
 
@@ -676,6 +732,11 @@ function formatDownloadSummary(result) {
     t('summarySucceeded', result.succeeded),
     t('summaryFailed', result.failed),
   ];
+
+  // 批量上限截断：告诉用户这次只处理了前 N 条，避免误以为全部都在下载
+  if (result.capped) {
+    parts.push(t('batchCappedNote', result.cappedFrom));
+  }
 
   if (result.strategy === 'direct') {
     parts.push(t('summaryDirect'));
@@ -720,6 +781,8 @@ function renderMedia() {
     matching: filtered.length,
     selected: allMedia.filter(media => selectedIds.has(media.id)).length,
   });
+  updateSelectionSummary();
+  updateDownloadCounts();
 
   el.imageList.classList.toggle('card-mode', viewMode === 'card');
 
@@ -973,9 +1036,14 @@ function listItemTemplate(media, index = 0) {
 
 function cardTemplate(media, index = 0) {
   const isSelected = selectedIds.has(media.id);
+  // 尺寸维度移入悬浮提示，不再常驻占用信息条
+  const titleParts = [media.filename || media.url];
+  if (media.width > 0 && media.height > 0) {
+    titleParts.push(`${media.width}x${media.height}`);
+  }
 
   return `
-    <div class="media-card ${isSelected ? 'selected' : ''}" data-id="${media.id}" title="${escapeHtml(media.filename || media.url)}">
+    <div class="media-card ${isSelected ? 'selected' : ''}" data-id="${media.id}" title="${escapeAttr(titleParts.join(' · '))}">
       <div class="media-card-check">✓</div>
       <span class="item-action">${actionButtonHtml(media)}</span>
       ${renderCardPreview(media, index)}
@@ -1073,27 +1141,18 @@ function renderCardPreview(media, index = 0) {
 }
 
 function renderCardInfo(media) {
-  const dimensions = getDimensionsText(media);
-  const size = formatSize(media.size);
   const type = (media.extension || media.mediaType || '').toUpperCase();
+  const size = formatSize(media.size);
 
   return `
     <div class="media-card-info">
       <div class="media-card-name">${escapeHtml(media.filename || media.url || t('mediaUnknownName'))}</div>
       <div class="media-card-meta">
-        <span>${escapeHtml(dimensions)}</span>
-        <span>${escapeHtml(size)}</span>
-        <span>${escapeHtml(type)}</span>
+        <span class="format-badge">${escapeHtml(type)}</span>
+        <span class="media-card-size">${escapeHtml(size)}</span>
       </div>
     </div>
   `;
-}
-
-function getDimensionsText(media) {
-  if (media.width > 0 && media.height > 0) {
-    return `${media.width}x${media.height}`;
-  }
-  return t('dimensionUnknown');
 }
 
 function getPreviewUrl(media) {
@@ -1239,6 +1298,8 @@ function toggleSelection(id) {
   if (item) item.classList.toggle('selected', selectedIds.has(id));
   updateSelectionButton(getFilteredMedia());
   updateStats({ selected: allMedia.filter(media => selectedIds.has(media.id)).length });
+  updateSelectionSummary();
+  updateDownloadCounts();
 }
 
 function updateViewButtons() {
@@ -1251,9 +1312,40 @@ function updateSelectionButton(filtered) {
   el.btnSelectAll.textContent = allCurrentSelected ? t('btnDeselectAll') : t('btnSelectAll');
 }
 
+/**
+ * 页脚左侧的选择汇总：「已选择 N 项 · 合计大小」
+ * size 为 0 的条目（DOM 来源常没有 Content-Length）不计入合计
+ */
+function updateSelectionSummary() {
+  const selected = allMedia.filter(media => selectedIds.has(media.id));
+
+  if (selected.length === 0) {
+    el.selectionSummary.hidden = true;
+    return;
+  }
+
+  const totalSize = selected.reduce((sum, media) => sum + (Number(media.size) || 0), 0);
+  el.selectionSummary.hidden = false;
+  el.selectionSummaryText.textContent = t('footerSelectedSummary', selected.length, formatSize(totalSize));
+}
+
+/**
+ * 两个下载按钮上的数量徽标（选中数 / 当前筛选数）
+ */
+function updateDownloadCounts() {
+  const selectedCount = selectedIds.size;
+  const filteredCount = getFilteredMedia().length;
+
+  el.btnDownloadSelectedCount.textContent = selectedCount > 0 ? `(${selectedCount})` : '';
+  el.btnDownloadAllCount.textContent = filteredCount > 0 ? `(${filteredCount})` : '';
+}
+
 function updateStatusUI(enabled) {
   el.statusDot.classList.toggle('active', enabled);
   el.statusText.textContent = enabled ? t('statusListening') : t('statusStopped');
+  // 头部开关旁的文字与状态行保持同源
+  el.switchLabel.textContent = enabled ? t('statusListening') : t('statusStopped');
+  el.switchLabel.classList.toggle('active', enabled);
   // 滚动抓取依赖监听通路，未开启监听时不可用
   el.btnScroll.disabled = !enabled;
 }
@@ -1344,6 +1436,23 @@ function toggleFilterPanel(force) {
 
 function closeFilterPanel() {
   toggleFilterPanel(false);
+}
+
+/**
+ * 下载策略菜单显隐（与筛选浮层同一套模式）
+ * @param {boolean} [force] - 省略则取反
+ */
+function toggleStrategyMenu(force) {
+  const open = force === undefined
+    ? !el.strategyMenu.classList.contains('open')
+    : Boolean(force);
+
+  el.strategyMenu.classList.toggle('open', open);
+  el.btnDownloadMenu.classList.toggle('active', open);
+}
+
+function closeStrategyMenu() {
+  toggleStrategyMenu(false);
 }
 
 function updateStats(stats) {

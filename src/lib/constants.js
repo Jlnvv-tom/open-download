@@ -65,6 +65,14 @@ export const MAX_CAPTURED_IMAGES = 5000;
 export const CAPACITY_WARNING_THRESHOLD = 4500;
 
 /**
+ * 单次批量下载的条数上限
+ * 一次点击最多处理这么多条：超出时后台截断到前 N 条并在结果里说明，
+ * 避免用户误选几千条后触发远超预期的长时间任务
+ * @type {number}
+ */
+export const MAX_BATCH_DOWNLOAD = 500;
+
+/**
  * 默认设置配置
  * @type {Object}
  * @property {boolean} enabled - 是否开启监听

@@ -323,6 +323,30 @@
   "ratingDismiss": {
     "message": "不再提示"
   },
+  "appSubtitle": {
+    "message": "一站式资源下载 · 支持多平台 / 多格式"
+  },
+  "tooltipSettings": {
+    "message": "设置"
+  },
+  "footerSelectedSummary": {
+    "message": "已选择 $1 项 · $2"
+  },
+  "batchCappedNote": {
+    "message": "已按上限取前 $1 条"
+  },
+  "menuStrategyAuto": {
+    "message": "自动（推荐）"
+  },
+  "menuStrategyZip": {
+    "message": "打包 ZIP"
+  },
+  "menuStrategyDirect": {
+    "message": "逐条直下"
+  },
+  "tooltipDownloadMenu": {
+    "message": "下载方式"
+  },
   "summaryFailureReasons": {
     "message": "失败原因: $1"
   },

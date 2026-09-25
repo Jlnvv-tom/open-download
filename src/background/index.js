@@ -1,7 +1,7 @@
 // background/index.js
 // Service Worker — 核心监听 + 消息处理
 
-import { DEFAULT_SETTINGS, MEDIA_TYPES, MESSAGE_TYPES } from '../lib/constants.js';
+import { DEFAULT_SETTINGS, MAX_BATCH_DOWNLOAD, MEDIA_TYPES, MESSAGE_TYPES } from '../lib/constants.js';
 import { store } from '../lib/store.js';
 import { DownloadManager, waitForDownload } from '../lib/downloader.js';
 import { makeZipFilename } from '../lib/zip.js';
@@ -584,8 +584,10 @@ async function handleMixedDownload(plan, settings) {
 
 /**
  * 批量下载入口：按 planTransfer 结果选择逐条直下、ZIP 分卷或两者的混合
+ * 条数超过 MAX_BATCH_DOWNLOAD 时截断到前 N 条，响应里带 capped/cappedFrom
+ * 让 UI 告诉用户「这次只处理了前 500 条」，避免误以为全部都在下载
  * @param {Object} payload - { ids: string[], strategy?: 'auto'|'zip'|'direct' }
- * @returns {Promise<{succeeded, failed, strategy, volumes, failedItems}>}
+ * @returns {Promise<{succeeded, failed, strategy, volumes, failedItems, capped?, cappedFrom?}>}
  */
 async function handleDownloadZip(payload) {
   await store.init();
@@ -594,10 +596,15 @@ async function handleDownloadZip(payload) {
   }
 
   const ids = payload?.ids || [];
-  const items = ids.map(id => store.getImageById(id)).filter(Boolean);
-  if (items.length === 0) {
+  const all = ids.map(id => store.getImageById(id)).filter(Boolean);
+  if (all.length === 0) {
     throw new Error(t('errorNothingToDownload'));
   }
+
+  // 单次批量上限：截断到前 N 条（保持用户勾选顺序），防止误选几千条后触发超长任务
+  const capped = all.length > MAX_BATCH_DOWNLOAD;
+  const cappedFrom = all.length;
+  const items = capped ? all.slice(0, MAX_BATCH_DOWNLOAD) : all;
 
   const settings = store.getSettings();
   const requested = payload?.strategy || 'auto';
@@ -614,14 +621,18 @@ async function handleDownloadZip(payload) {
 
   batchInProgress = true;
   try {
+    let result;
     if (plan.strategy === 'direct') {
       // directItems 覆盖全部条目（要么全是视频，要么超阈值整批直下），缺省时退回整批
-      return await handleDirectDownload(plan.directItems?.length ? plan.directItems : items, settings);
+      result = await handleDirectDownload(plan.directItems?.length ? plan.directItems : items, settings);
+    } else if (plan.strategy === 'mixed') {
+      result = await handleMixedDownload(plan, settings);
+    } else {
+      result = await handleZipDownload(settings, plan.volumes);
     }
-    if (plan.strategy === 'mixed') {
-      return await handleMixedDownload(plan, settings);
-    }
-    return await handleZipDownload(settings, plan.volumes);
+
+    // 截断信息随结果返回，UI 据此提示「已按上限取前 N 条」
+    return capped ? { ...result, capped: true, cappedFrom } : result;
   } finally {
     batchInProgress = false;
   }

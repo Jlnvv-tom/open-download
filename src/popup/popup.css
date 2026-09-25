@@ -63,6 +63,39 @@ body {
   letter-spacing: -0.01em;
 }
 
+.header-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header-subtitle {
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.switch-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color var(--duration) var(--ease);
+}
+
+.switch-label.active {
+  color: var(--success);
+}
+
 /* ─── Switch ─── */
 
 .switch {
@@ -216,21 +249,30 @@ body {
 
 /* ─── Metrics（一行紧凑指标条） ─── */
 
+/* 指标条：收在一个圆角容器里，五个指标各带图标 */
 .stats-bar {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 4px 14px;
-  border-bottom: 1px solid var(--border);
+  margin: 6px 14px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
   flex-shrink: 0;
   overflow-x: auto;
 }
 
 .stat {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px;
   white-space: nowrap;
+}
+
+.stat svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .stat-value {
@@ -480,8 +522,9 @@ body {
 
 .image-list.card-mode {
   display: grid;
-  /* 列宽固定等于 --content-size：配合预览区的正方形，「内容大小」滑杆是精确的所见即所得 */
-  grid-template-columns: repeat(auto-fill, minmax(var(--content-size), var(--content-size)));
+  /* 列宽固定等于 --content-size：「内容大小」滑杆是精确的所见即所得；
+     预览区高度也直接取同一变量（见 .media-card-preview），保证是严格正方形 */
+  grid-template-columns: repeat(auto-fill, var(--content-size));
   grid-auto-rows: auto;
   column-gap: 12px;
   row-gap: 14px;
@@ -898,10 +941,11 @@ body {
 
 /* ─── 卡片视图 ───
  *
- * 几何模型：预览区是随列宽缩放的正方形（aspect-ratio），列宽由内容大小滑杆
- * 驱动；媒体与占位符绝对定位铺满预览区，因此图片/视频的加载状态不会改变
- * 卡片高度。右上角操作按钮也必须绝对定位——cardTemplate 把 .item-action
- * 输出在预览区之前，一旦回到文档流就会在卡片顶部多出一行按钮、把预览顶变形。
+ * 几何模型：网格列宽与预览区高度共用同一个变量 --content-size（严格正方形），
+ * 媒体是预览区内的普通文档流块（100%×100% + object-fit），加载状态不影响布局；
+ * 占位符绝对定位覆盖在预览区上，仅当图片加载失败时显示。
+ * 右上角操作按钮必须绝对定位——cardTemplate 把 .item-action 输出在预览区之前，
+ * 一旦回到文档流就会在卡片顶部多出一行按钮、把预览顶变形。
  */
 
 .media-card {
@@ -935,7 +979,9 @@ body {
 .media-card-preview {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  /* 高度直接钉死为列宽（网格列与这里共用 --content-size）：
+     不经过 aspect-ratio 的宽度解析，图片/视频的加载状态也不会影响卡片布局 */
+  height: var(--content-size);
   flex-shrink: 0;
   overflow: hidden;
   border-bottom: 1px solid var(--border);
@@ -950,14 +996,17 @@ body {
   z-index: 0;
 }
 
-.media-card-preview img,
-.media-card-preview video {
-  position: absolute;
-  inset: 0;
+/* 媒体走普通文档流（不绝对定位）：块级 + 100%×100% 正好填满预览区，
+   由 object-fit 负责裁切；加载失败时 onerror 隐藏自身、显示占位符 */
+.media-card-preview > img,
+.media-card-preview > video {
+  display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: cover;
-  display: block;
+  margin: 0;
 }
 
 .media-card-placeholder {
@@ -1071,6 +1120,24 @@ body {
   flex-shrink: 0;
 }
 
+/* 格式徽标：信息条左侧的主色小胶囊 */
+.format-badge {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(140deg, var(--primary), var(--primary-hover));
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+/* 文件大小：顶到信息条右侧 */
+.media-card-size {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .duration-badge {
   position: absolute;
   right: 6px;
@@ -1155,8 +1222,44 @@ body {
   flex-shrink: 0;
 }
 
-.footer button {
-  flex: 1;
+/* 选择汇总：有选中时才出现，占用弹性空间 */
+.selection-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.selection-summary[hidden] {
+  display: none;
+}
+
+.selection-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--primary), var(--primary-hover));
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.selection-summary-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 只给「真正的按钮」定尺寸：策略菜单里的选项是后代而不是直接子级，不能被这条命中 */
+.footer > button,
+.download-group > button {
   height: 28px;
   border-radius: var(--radius-sm);
   font-size: 11px;
@@ -1166,6 +1269,87 @@ body {
     box-shadow var(--duration) var(--ease),
     background var(--duration) var(--ease),
     border-color var(--duration) var(--ease);
+}
+
+.footer > button {
+  flex: 1;
+}
+
+/* 「下载选中」主按钮 + 下拉箭头的组合按钮 */
+.download-group {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+}
+
+.download-main {
+  flex: 1;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.download-caret {
+  flex-shrink: 0;
+  width: 24px;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* 按钮文案标签：setButtonText() 的定位钩子；点击穿透到按钮本身 */
+.btn-label {
+  pointer-events: none;
+}
+
+.btn-count {
+  margin-left: 4px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* 下载方式下拉菜单：从组合按钮向上展开 */
+.strategy-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  display: none;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: var(--shadow-md);
+  animation: pop-in var(--duration) var(--ease);
+}
+
+.strategy-menu.open {
+  display: flex;
+}
+
+.strategy-option {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.strategy-option:hover {
+  background: var(--bg-hover);
+}
+
+.strategy-option.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .btn-primary {
@@ -1245,6 +1429,15 @@ body {
 .rating-row .site-action[data-i18n-title] {
   padding: 3px 7px;
   line-height: 1;
+}
+
+/* 评分条里的装饰星形 */
+.rating-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--warning);
+  flex-shrink: 0;
 }
 
 /* ─── Lightbox ─── */

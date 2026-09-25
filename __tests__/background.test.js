@@ -1056,6 +1056,87 @@ describe('background message handler', () => {
     global.chrome.downloads.download = realDownload;
   });
 
+  test('单次批量下载超过 500 条时应该截断到前 500 条', async () => {
+    await store.init();
+
+    // 走 ZIP 路径验证截断：直下路径会真实跑 500 次 mock 下载，超出 5s 测试超时
+    const ids = [];
+    for (let index = 0; index < 501; index++) {
+      const media = store.addMedia({
+        url: `https://cdn.example.com/cap/${index}.jpg`,
+        filename: `cap-${index}.jpg`,
+        size: 1024
+      });
+      ids.push(media.id);
+    }
+
+    const realCreate = global.chrome.offscreen.createDocument.bind(global.chrome.offscreen);
+    global.chrome.offscreen.createDocument = async (options) => {
+      await realCreate(options);
+      dispatchToBackground({ type: MESSAGE_TYPES.ZIP_OFFSCREEN_READY });
+    };
+
+    const volumeSizes = [];
+    const realSendMessage = global.chrome.runtime.sendMessage;
+    global.chrome.runtime.sendMessage = async (message) => {
+      if (message.type === MESSAGE_TYPES.ZIP_BUILD_REQUEST) {
+        volumeSizes.push(message.payload.items.length);
+        dispatchToBackground({
+          type: MESSAGE_TYPES.ZIP_BUILD_RESULT,
+          payload: {
+            zipName: message.payload.zipName,
+            blobUrl: `blob:mock-cap-${volumeSizes.length}`,
+            succeeded: message.payload.items.length,
+            failed: 0,
+            succeededIds: message.payload.items.map(item => item.id),
+            failedItems: []
+          }
+        });
+        return { received: true };
+      }
+      return { success: true };
+    };
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.DOWNLOAD_ZIP,
+      payload: { ids }
+    });
+
+    expect(response).toMatchObject({
+      success: true,
+      capped: true,
+      cappedFrom: 501,
+      succeeded: 500,
+      failed: 0
+    });
+    // 三卷合计恰好 500 条，第 501 条未进包
+    expect(volumeSizes.reduce((sum, count) => sum + count, 0)).toBe(500);
+    expect(store.getMediaById(ids[499])).toMatchObject({ status: 'downloaded' });
+    expect(store.getMediaById(ids[500])).toMatchObject({ status: 'pending' });
+
+    global.chrome.runtime.sendMessage = realSendMessage;
+    global.chrome.offscreen.createDocument = realCreate;
+  });
+
+  test('单次批量不超过上限时不应该带截断标记', async () => {
+    await store.init();
+
+    const ids = [
+      store.addMedia({ url: 'https://cdn.example.com/small/a.jpg' }),
+      store.addMedia({ url: 'https://cdn.example.com/small/b.jpg' }),
+      store.addMedia({ url: 'https://cdn.example.com/small/c.jpg' })
+    ].map(media => media.id);
+
+    const response = await sendBackgroundMessage({
+      type: MESSAGE_TYPES.DOWNLOAD_ZIP,
+      payload: { ids, strategy: 'direct' }
+    });
+
+    expect(response).toMatchObject({ success: true, succeeded: 3, failed: 0 });
+    expect(response.capped).toBeUndefined();
+    expect(response.cappedFrom).toBeUndefined();
+  });
+
   test('PHASH_REQUEST 应该驱动 offscreen 计算并写回指标', async () => {
     await store.init();
 

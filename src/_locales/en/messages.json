@@ -323,6 +323,30 @@
   "ratingDismiss": {
     "message": "Don't show again"
   },
+  "appSubtitle": {
+    "message": "One-stop resource download · multiple platforms & formats"
+  },
+  "tooltipSettings": {
+    "message": "Settings"
+  },
+  "footerSelectedSummary": {
+    "message": "$1 selected · $2"
+  },
+  "batchCappedNote": {
+    "message": "capped to the first $1 items"
+  },
+  "menuStrategyAuto": {
+    "message": "Auto (recommended)"
+  },
+  "menuStrategyZip": {
+    "message": "Pack as ZIP"
+  },
+  "menuStrategyDirect": {
+    "message": "Download individually"
+  },
+  "tooltipDownloadMenu": {
+    "message": "Download method"
+  },
   "summaryFailureReasons": {
     "message": "Failure reasons: $1"
   },
