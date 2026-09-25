@@ -238,8 +238,19 @@ function bindEvents() {
   });
 
   el.btnFilter.addEventListener('click', () => {
-    const visible = el.filterPanel.style.display !== 'none';
-    el.filterPanel.style.display = visible ? 'none' : 'flex';
+    // 筛选面板是浮层：用 class 切换显隐，不再写行内 display（行内样式会盖过 CSS）
+    toggleFilterPanel();
+  });
+
+  // 浮层的两种常规关闭方式：点击面板/按钮以外、按 Esc
+  document.addEventListener('click', (event) => {
+    if (!el.filterPanel.classList.contains('open')) return;
+    if (el.filterPanel.contains(event.target) || el.btnFilter.contains(event.target)) return;
+    closeFilterPanel();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeFilterPanel();
   });
 
   el.sourceFilter.addEventListener('click', async (event) => {
@@ -1315,6 +1326,24 @@ function updateSortControlUI() {
   el.sortControl.querySelectorAll('[data-sort]').forEach(button => {
     button.classList.toggle('active', button.dataset.sort === sortBy);
   });
+}
+
+/**
+ * 筛选浮层显隐
+ * 浮层覆盖在列表之上，因此展开/收起都不影响列表高度（也不会触发重排闪烁）
+ * @param {boolean} [force] - 省略则取反
+ */
+function toggleFilterPanel(force) {
+  const open = force === undefined
+    ? !el.filterPanel.classList.contains('open')
+    : Boolean(force);
+
+  el.filterPanel.classList.toggle('open', open);
+  el.btnFilter.classList.toggle('active', open);
+}
+
+function closeFilterPanel() {
+  toggleFilterPanel(false);
 }
 
 function updateStats(stats) {

@@ -214,3 +214,5 @@
 | 2026-09-22 | V16-02 视频直链下载实现完成 | `transfer.videoDirect` 驱动媒体类型维度、`mixed` 策略与先直下后打包编排、Options 开关、`directSucceeded` 分开报数；删除 `DOWNLOAD_SELECTED` 常量与消息分支并改写其用例；测试数 200 → 208 |
 | 2026-09-22 | V16-03 智能筛选探索实现完成 | 新增 `src/lib/image-hash.js`（dHash + 汉明距离 + Laplacian 方差 + 相似聚类，纯函数可在 node 环境测试）、`PHASH_REQUEST/RESULT/STATE` 消息与 offscreen 串行取像素通路、popup 清晰度排序与相似归并视图；media 新增 `phash`/`sharpness`；测试数 208 → 234 |
 | 2026-09-22 | V16-05 增长运营实现完成，**v1.6 五个任务全部落地** | `docs/guides/` 四页教程 + 英文入口骨架 + robots/sitemap + 落地页导航与页脚入口；popup 一次性评分提示条（`ui.ratingPromptShown`）；`.github/ISSUE_TEMPLATE/` 四个 YAML 表单（含规则失效专属模板）；测试数 234 → 235；**遗留**：商店真实 ID 待上架后替换 `EXTENSION_ID_PLACEHOLDER`，教程截图位待补 |
+| 2026-09-25 | 版本号重置为 1.0.0（用户决策） | `manifest.json` 与 `package.json` 同步 1.6.0 → 1.0.0，`docs/index.html` 徽标与 `store-listing.md` 目标版本随改；**理由：上架前重置版本基线**。历史变更记录中的 1.6.0 为当时事实，不回改。注意：一旦在 Chrome Web Store 上架，版本号不可再低于已发布版本，1.0.0 必须是首个提交的版本 |
+| 2026-09-25 | 弹窗与设置页界面重构（精致极简） | 宽度 480 → 640px；新增 `src/styles/tokens.css` 共享设计令牌；统计/状态/站点三处合并为紧凑条、筛选面板改浮层、列表去高度上限自适应（可见高度约 240 → 约 380px）；图标统一 24 网格线性风格、视图切换改分段控件；修复卡片视图预览高度回归（恢复正方形预览 + 操作按钮绝对定位）；Options 页同一设计语言；测试数 235 保持全绿 |

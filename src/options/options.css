@@ -1,163 +1,238 @@
-/* options/options.css */
-
-:root {
-  --bg: #ffffff;
-  --bg-secondary: #f5f7fa;
-  --border: #e2e8f0;
-  --text: #1a202c;
-  --text-secondary: #718096;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --radius: 8px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1a1b26;
-    --bg-secondary: #24283b;
-    --border: #3a3f55;
-    --text: #c0caf5;
-    --text-secondary: #9aa5ce;
-    --primary: #7aa2f7;
-    --primary-hover: #89b4fa;
-  }
-}
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-/* 表单控件默认不继承页面字体，显式继承以避免字形与周围文本不一致 */
-button,
-input,
-select,
-textarea {
-  font-family: inherit;
-}
-
-/* 键盘导航焦点环：鼠标点击不显示 */
-:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 1px;
-}
+/* options/options.css — 设置页布局与组件样式
+ *
+ * 设计变量来自 ../styles/tokens.css（与弹窗共用一套配色与深色覆盖）。
+ * 表单结构约束：所有字段 id、input 类型与 .toast / .toast.show 的语义都不能变，
+ * options.js 依赖它们读写设置；这里只改观感与排版。
+ */
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 14px;
+  font-family: var(--font-sans);
+  font-size: 13px;
   color: var(--text);
   background: var(--bg-secondary);
   line-height: 1.6;
 }
 
 .container {
-  max-width: 640px;
-  margin: 40px auto;
+  max-width: 720px;
+  margin: 32px auto;
   padding: 0 20px;
 }
 
 h1 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
-  margin-bottom: 24px;
-}
-
-.card {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
+  letter-spacing: -0.01em;
   margin-bottom: 20px;
 }
 
+h1::after {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 3px;
+  margin-top: 8px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--primary), var(--primary-hover));
+}
+
+/* ─── 卡片：顶部一道主色细条，与弹窗的强调方式一致 ─── */
+
+.card {
+  position: relative;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  border-radius: 0 0 var(--radius-pill) var(--radius-pill);
+  background: linear-gradient(90deg, var(--primary-soft), var(--primary), var(--primary-soft));
+  opacity: 0.85;
+}
+
 .card h2 {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   margin-bottom: 16px;
-  padding-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
 }
 
+/* ─── 表单行：标签 / 控件 + 说明 的两列栅格 ─── */
+
 .form-row {
-  margin-bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 6px 16px;
+  align-items: start;
+  margin-bottom: 14px;
 }
 
 .form-row label {
-  font-weight: 500;
-  font-size: 13px;
+  padding-top: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
 }
 
 .form-row small {
+  grid-column: 2;
   font-size: 11px;
+  line-height: 1.45;
   color: var(--text-secondary);
 }
 
-.form-row input[type="text"],
-.form-row input[type="number"],
+.form-row input[type='text'],
+.form-row input[type='number'],
 .form-row select,
 .form-row textarea {
-  padding: 8px 12px;
+  grid-column: 2;
+  width: 100%;
+  max-width: 320px;
+  padding: 6px 10px;
   border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
   background: var(--bg);
   color: var(--text);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
 }
 
 .form-row input:focus,
 .form-row select:focus,
 .form-row textarea:focus {
   border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
-.form-row input[type="checkbox"] {
+/* 开关：用原生 checkbox 画出滑块外观，无需改 markup，也不影响 JS 读 .checked */
+.form-row input[type='checkbox'],
+.checkbox-group input[type='checkbox'] {
+  appearance: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background var(--duration) var(--ease);
+}
+
+.form-row input[type='checkbox']::after,
+.checkbox-group input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
   width: 16px;
   height: 16px;
-  margin-right: 6px;
-  vertical-align: middle;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration) var(--ease);
+}
+
+.form-row input[type='checkbox']:checked,
+.checkbox-group input[type='checkbox']:checked {
+  background: linear-gradient(140deg, var(--primary), var(--primary-hover));
+}
+
+.form-row input[type='checkbox']:checked::after,
+.checkbox-group input[type='checkbox']:checked::after {
+  transform: translateX(14px);
+}
+
+/* 开关类表单行：整行铺开，说明落在下方 */
+.form-row.switch-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.form-row.switch-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 0;
+  cursor: pointer;
+}
+
+.form-row.switch-row small {
+  grid-column: 1;
+  padding-left: 42px;
 }
 
 .checkbox-group {
+  grid-column: 2;
   display: flex;
   gap: 16px;
 }
 
 .checkbox-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 0;
   font-weight: 400;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
 }
 
 .form-row textarea {
   resize: vertical;
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* ─── 操作按钮 ─── */
 
 .actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
 }
 
-.btn-primary, .btn-secondary {
-  padding: 8px 20px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
+.btn-primary,
+.btn-secondary {
+  padding: 7px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.2s;
+  transition: transform var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease),
+    background var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
 }
 
 .btn-primary {
-  background: var(--primary);
-  color: white;
+  background: linear-gradient(140deg, var(--primary), var(--primary-hover));
+  color: #fff;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:not(:disabled):hover {
-  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.btn-primary:not(:disabled):active {
+  transform: scale(0.98);
 }
 
 .btn-secondary {
@@ -167,7 +242,13 @@ h1 {
 }
 
 .btn-secondary:not(:disabled):hover {
-  background: var(--bg-secondary);
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-secondary:not(:disabled):active {
+  transform: scale(0.98);
 }
 
 .btn-primary:disabled,
@@ -176,19 +257,24 @@ h1 {
   cursor: not-allowed;
 }
 
+/* ─── Toast：居中浮层提示 ─── */
+
 .toast {
   position: fixed;
-  bottom: 24px;
+  bottom: 28px;
   left: 50%;
+  /* 水平居中依赖 translateX(-50%)，改布局时必须保留 */
   transform: translateX(-50%) translateY(100px);
-  /* 反色提示：亮色下为深底白字，暗色下自动反转为浅底深字 */
   background: var(--text);
   color: var(--bg);
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
   opacity: 0;
-  transition: all 0.3s;
+  transition: opacity var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
   pointer-events: none;
 }
 
@@ -197,14 +283,40 @@ h1 {
   transform: translateX(-50%) translateY(0);
 }
 
-/* ─── 减少动态效果 ─── */
+/* ─── 动效降级 ─── */
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.001ms !important;
+    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── 窄屏：两列栅格退回单列 ─── */
+
+@media (max-width: 620px) {
+  .form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-row label {
+    padding-top: 0;
+  }
+
+  .form-row input[type='text'],
+  .form-row input[type='number'],
+  .form-row select,
+  .form-row textarea,
+  .form-row small,
+  .checkbox-group {
+    grid-column: 1;
+    max-width: none;
+  }
+
+  .form-row.switch-row small {
+    padding-left: 42px;
   }
 }

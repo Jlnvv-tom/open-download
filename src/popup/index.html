@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Open Download</title>
+  <link rel="stylesheet" href="../styles/tokens.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -13,7 +14,7 @@
     <header class="header">
       <div class="header-left">
         <div class="logo">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
@@ -27,10 +28,20 @@
       </label>
     </header>
 
-    <!-- Capacity Hint -->
-    <div class="capacity-hint" id="capacity-hint" hidden></div>
+    <!-- Status Bar：监听状态 + 容量警示 + 站点开关（三处合并为一行，省下两整行高度） -->
+    <div class="status-bar">
+      <div class="status-indicator" id="status-indicator">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text"></span>
+      </div>
+      <span class="capacity-hint" id="capacity-hint" hidden></span>
+      <div class="site-row site-chip" id="site-row" hidden>
+        <span class="site-info" id="site-info"></span>
+        <button class="site-action" id="btn-site-toggle" type="button"></button>
+      </div>
+    </div>
 
-    <!-- Stats Bar -->
+    <!-- Metrics：五个指标压成一行紧凑指标条 -->
     <div class="stats-bar">
       <div class="stat">
         <span class="stat-value" id="stat-total">0</span>
@@ -54,128 +65,137 @@
       </div>
     </div>
 
-    <div class="media-tabs" id="media-tabs">
-      <button class="tab active" data-media-type="image">
-        <span data-i18n="tabImage"></span> <span class="tab-count">0</span>
-      </button>
-      <button class="tab" data-media-type="video">
-        <span data-i18n="tabVideo"></span> <span class="tab-count">0</span>
-      </button>
+    <!-- Tabs Row：媒体类型分段控件与格式 chip 同行 -->
+    <div class="tabs-row">
+      <div class="media-tabs" id="media-tabs">
+        <button class="tab active" data-media-type="image">
+          <span data-i18n="tabImage"></span> <span class="tab-count">0</span>
+        </button>
+        <button class="tab" data-media-type="video">
+          <span data-i18n="tabVideo"></span> <span class="tab-count">0</span>
+        </button>
+      </div>
+      <div class="format-tabs" id="format-tabs"></div>
     </div>
-
-    <div class="format-tabs" id="format-tabs"></div>
 
     <!-- Toolbar -->
     <div class="toolbar">
       <div class="search-box">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/>
+          <path d="M20 20l-3.9-3.9"/>
         </svg>
         <input type="text" id="search-input" data-i18n-placeholder="searchPlaceholder">
       </div>
-      <button class="btn-icon" id="btn-filter" data-i18n-title="tooltipFilter">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-        </svg>
-      </button>
-      <button class="btn-icon active" id="btn-view-list" data-i18n-title="tooltipViewList">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="8" y1="6" x2="21" y2="6"/>
-          <line x1="8" y1="12" x2="21" y2="12"/>
-          <line x1="8" y1="18" x2="21" y2="18"/>
-          <line x1="3" y1="6" x2="3.01" y2="6"/>
-          <line x1="3" y1="12" x2="3.01" y2="12"/>
-          <line x1="3" y1="18" x2="3.01" y2="18"/>
-        </svg>
-      </button>
-      <button class="btn-icon" id="btn-view-card" data-i18n-title="tooltipViewCard">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7"/>
-          <rect x="14" y="3" width="7" height="7"/>
-          <rect x="3" y="14" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/>
-        </svg>
-      </button>
-      <button class="btn-icon" id="btn-group" data-i18n-title="tooltipGroupByPage">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-          <polyline points="2 17 12 22 22 17"/>
-          <polyline points="2 12 12 17 22 12"/>
-        </svg>
-      </button>
-      <button class="btn-icon" id="btn-scroll" data-i18n-title="tooltipScrollCapture">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <polyline points="19 12 12 19 5 12"/>
-        </svg>
-      </button>
-      <button class="btn-icon" id="btn-clear" data-i18n-title="tooltipClear">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="3 6 5 6 21 6"/>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-        </svg>
-      </button>
-    </div>
-
-    <!-- Filter Panel (collapsible) -->
-    <div class="filter-panel" id="filter-panel" style="display: none;">
-      <div class="filter-row">
-        <label data-i18n="filterSource"></label>
-        <div class="source-control" id="source-filter">
-          <button class="source-option active" data-source="all" data-i18n="filterSourceAll"></button>
-          <button class="source-option" data-source="network" data-i18n="filterSourceNetwork"></button>
-          <button class="source-option" data-source="dom" data-i18n="filterSourceDom"></button>
+      <div class="toolbar-actions">
+        <button class="btn-icon" id="btn-filter" data-i18n-title="tooltipFilter">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h16"/>
+            <path d="M7 12h10"/>
+            <path d="M10 18h4"/>
+          </svg>
+        </button>
+        <button class="btn-icon" id="btn-group" data-i18n-title="tooltipGroupByPage">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/>
+            <path d="M4 12.5L12 17l8-4.5"/>
+          </svg>
+        </button>
+        <button class="btn-icon" id="btn-scroll" data-i18n-title="tooltipScrollCapture">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 4v13"/>
+            <path d="M7 12l5 5 5-5"/>
+          </svg>
+        </button>
+        <button class="btn-icon btn-icon-danger" id="btn-clear" data-i18n-title="tooltipClear">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7h16"/>
+            <path d="M9 7V4h6v3"/>
+            <path d="M6.5 7l.9 12.1A1.5 1.5 0 0 0 8.9 20.5h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+          </svg>
+        </button>
+        <div class="segmented">
+          <button class="btn-icon" id="btn-view-list" data-i18n-title="tooltipViewList">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h16"/>
+              <path d="M4 12h16"/>
+              <path d="M4 18h16"/>
+            </svg>
+          </button>
+          <button class="btn-icon" id="btn-view-card" data-i18n-title="tooltipViewCard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/>
+              <rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/>
+              <rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/>
+              <rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>
+            </svg>
+          </button>
         </div>
-      </div>
-      <div class="filter-row">
-        <label data-i18n="filterSortBy"></label>
-        <div class="source-control" id="sort-control">
-          <button class="source-option active" data-sort="capturedAt" data-i18n="sortCapturedAt"></button>
-          <button class="source-option" data-sort="sharpness" data-i18n="sortSharpness"></button>
-        </div>
-      </div>
-      <div class="filter-row checkbox-row">
-        <label>
-          <input type="checkbox" id="merge-similar">
-          <span data-i18n="filterMergeSimilar"></span>
-        </label>
-        <small id="merge-similar-hint" data-i18n="filterMergeSimilarHint"></small>
-      </div>
-      <div class="filter-row">
-        <label data-i18n="filterMinSize"></label>
-        <input type="number" id="filter-min-size" placeholder="0" min="0">
-      </div>
-      <div class="filter-row size-row">
-        <label data-i18n="filterContentSize"></label>
-        <div class="size-control">
-          <input type="range" id="content-size-range" min="84" max="180" step="4">
-          <input type="number" id="content-size-input" min="84" max="180" step="4">
-        </div>
-      </div>
-      <div class="filter-row">
-        <label data-i18n="filterMinDimensions"></label>
-        <div class="dimension-control">
-          <input type="number" id="filter-min-width" data-i18n-placeholder="filterWidthPlaceholder" min="0">
-          <span class="dimension-separator">×</span>
-          <input type="number" id="filter-min-height" data-i18n-placeholder="filterHeightPlaceholder" min="0">
-        </div>
-      </div>
-      <div class="filter-row">
-        <label data-i18n="filterExtensions"></label>
-        <input type="text" id="filter-extensions" data-i18n-placeholder="filterExtensionsPlaceholder">
       </div>
     </div>
 
-    <!-- Media List -->
-    <div class="image-list" id="image-list">
-      <div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <circle cx="8.5" cy="8.5" r="1.5"/>
-          <polyline points="21 15 16 10 5 21"/>
-        </svg>
-        <p data-i18n="emptyStateIdle"></p>
+    <!-- Content：列表铺满剩余高度；筛选面板以浮层覆盖其上，不再挤压列表 -->
+    <div class="content">
+      <div class="image-list" id="image-list">
+        <div class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <p data-i18n="emptyStateIdle"></p>
+        </div>
+      </div>
+
+      <!-- Filter Panel（浮层，显隐由 popup.js 切换 .open） -->
+      <div class="filter-panel" id="filter-panel">
+        <div class="filter-row">
+          <label data-i18n="filterSource"></label>
+          <div class="source-control" id="source-filter">
+            <button class="source-option active" data-source="all" data-i18n="filterSourceAll"></button>
+            <button class="source-option" data-source="network" data-i18n="filterSourceNetwork"></button>
+            <button class="source-option" data-source="dom" data-i18n="filterSourceDom"></button>
+          </div>
+        </div>
+        <div class="filter-row">
+          <label data-i18n="filterSortBy"></label>
+          <div class="source-control" id="sort-control">
+            <button class="source-option active" data-sort="capturedAt" data-i18n="sortCapturedAt"></button>
+            <button class="source-option" data-sort="sharpness" data-i18n="sortSharpness"></button>
+          </div>
+        </div>
+        <div class="filter-row checkbox-row">
+          <label>
+            <input type="checkbox" id="merge-similar">
+            <span data-i18n="filterMergeSimilar"></span>
+          </label>
+          <small id="merge-similar-hint" data-i18n="filterMergeSimilarHint"></small>
+        </div>
+        <div class="filter-row">
+          <label data-i18n="filterMinSize"></label>
+          <input type="number" id="filter-min-size" placeholder="0" min="0">
+        </div>
+        <div class="filter-row size-row">
+          <label data-i18n="filterContentSize"></label>
+          <div class="size-control">
+            <input type="range" id="content-size-range" min="84" max="180" step="4">
+            <input type="number" id="content-size-input" min="84" max="180" step="4">
+          </div>
+        </div>
+        <div class="filter-row">
+          <label data-i18n="filterMinDimensions"></label>
+          <div class="dimension-control">
+            <input type="number" id="filter-min-width" data-i18n-placeholder="filterWidthPlaceholder" min="0">
+            <span class="dimension-separator">×</span>
+            <input type="number" id="filter-min-height" data-i18n-placeholder="filterHeightPlaceholder" min="0">
+          </div>
+        </div>
+        <div class="filter-row">
+          <label data-i18n="filterExtensions"></label>
+          <input type="text" id="filter-extensions" data-i18n-placeholder="filterExtensionsPlaceholder">
+        </div>
       </div>
     </div>
 
@@ -187,13 +207,7 @@
       <button class="btn-primary" id="btn-download-all" data-i18n="btnDownloadAll"></button>
     </footer>
 
-    <!-- 站点级捕获开关（当前标签页站点） -->
-    <div class="site-row" id="site-row" hidden>
-      <span class="site-info" id="site-info"></span>
-      <button class="site-action" id="btn-site-toggle" type="button"></button>
-    </div>
-
-    <!-- 评分提示条：累计成功下载达阈值后只出现一次（V16-05） -->
+    <!-- 评分提示条：累计成功下载达阈值后只出现一次，不占常驻高度 -->
     <div class="site-row rating-row" id="rating-row" hidden>
       <span class="site-info" data-i18n="ratingPrompt"></span>
       <span class="site-row-actions">
@@ -201,32 +215,26 @@
         <button class="site-action" id="btn-rating-close" type="button" data-i18n-title="ratingDismiss" aria-label="x">×</button>
       </span>
     </div>
-
-    <!-- Status indicator -->
-    <div class="status-indicator" id="status-indicator">
-      <span class="status-dot" id="status-dot"></span>
-      <span id="status-text"></span>
-    </div>
   </div>
 
-  <!-- Lightbox（popup 内全屏预览层，Chrome popup 视口固定约 480x600） -->
+  <!-- Lightbox（popup 内全屏预览层） -->
   <div id="lightbox" hidden>
     <div id="lightbox-stage"></div>
     <div id="lightbox-caption"></div>
     <button id="lightbox-close" class="lightbox-btn" data-i18n-title="tooltipClose">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 6l12 12"/>
+        <path d="M18 6L6 18"/>
       </svg>
     </button>
     <button id="lightbox-prev" class="lightbox-btn" data-i18n-title="tooltipPrev">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="15 18 9 12 15 6"/>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 6l-6 6 6 6"/>
       </svg>
     </button>
     <button id="lightbox-next" class="lightbox-btn" data-i18n-title="tooltipNext">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="9 18 15 12 9 6"/>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 6l6 6-6 6"/>
       </svg>
     </button>
   </div>

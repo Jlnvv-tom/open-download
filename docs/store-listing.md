@@ -2,7 +2,7 @@
 
 本文件是上架提交时的文案与素材清单，内容必须与 `src/manifest.json` 的权限声明、`docs/privacy.html` 的隐私政策保持一致。**任何一项改动后需要同步核对另外两项。**
 
-- 目标版本：1.6.0
+- 目标版本：1.0.0
 - 隐私政策 URL：`https://<GitHub Pages 域名>/privacy.html`（由 Deploy Docs 工作流部署 `docs/` 目录后可得）
 - 单一用途说明：在浏览器本地捕获网页加载的图片与视频资源，并提供筛选、预览与批量下载。
 
@@ -87,7 +87,7 @@ Open Download watches network activity in the background and records every image
 ## 6. 提交前检查清单
 
 1. `npm test` 全绿、`npm run build` 通过、`npm run pack` 产物解压后不含 `__tests__/`、`docs/`、`node_modules/`。
-2. `src/manifest.json` 的 `version` 为 `1.6.0`，`default_locale` 为 `zh_CN`，权限清单与第 3 节逐条一致（`commands` 是顶层字段，不计入 `permissions`）。
+2. `src/manifest.json` 的 `version` 为 `1.0.0`（与 `package.json` 一致），`default_locale` 为 `zh_CN`，权限清单与第 3 节逐条一致（`commands` 是顶层字段，不计入 `permissions`）。
 3. `docs/privacy.html` 已部署且可访问，内容与第 3、4 节自洽。
 4. 商店描述、截图文案与实际功能一致（尤其是「大文件旁路」「分卷」「携带 Cookie 默认关闭」三处表述）。
 5. 构建产物在 Chrome 中加载后，Popup / Options / 右键菜单在英文与中文环境下均无裸露 i18n key。
