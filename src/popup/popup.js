@@ -46,6 +46,7 @@ const el = {
   statFailed: $('#stat-failed'),
   statMatching: $('#stat-matching'),
   statSelected: $('#stat-selected'),
+  statsBadge: $('#stats-badge'),
   mediaTabs: $('#media-tabs'),
   formatTabs: $('#format-tabs'),
   searchInput: $('#search-input'),
@@ -255,11 +256,6 @@ async function init() {
   await loadMedia();
   bindEvents();
   updateThemeButton();
-  // 指标条只留图标 + 数字，文字标签收进 hover tip
-  document.querySelectorAll('.stat').forEach(stat => {
-    const label = stat.querySelector('.stat-label');
-    if (label) stat.title = t(label.dataset.i18n);
-  });
   updateGuide();
   updateLastResultRow();
   updateStaleRow();
@@ -1252,9 +1248,12 @@ function renderMedia() {
   updateHiddenSelectionBar();
   updateGuide();
 
-  el.imageList.classList.toggle('card-mode', viewMode === 'card');
+  // 空态必须脱离卡片网格，否则会被当成 104px 的 grid item 挤成竖排
+  const isEmpty = filtered.length === 0;
+  el.imageList.classList.toggle('card-mode', viewMode === 'card' && !isEmpty);
+  el.imageList.classList.toggle('is-empty', isEmpty);
 
-  if (filtered.length === 0) {
+  if (isEmpty) {
     renderEmptyState();
     return;
   }
@@ -1857,7 +1856,10 @@ function updateStats(stats) {
   if (stats.total !== undefined) el.statTotal.textContent = stats.total;
   if (stats.downloaded !== undefined) el.statDownloaded.textContent = stats.downloaded;
   if (stats.failed !== undefined) el.statFailed.textContent = stats.failed;
-  if (stats.matching !== undefined) el.statMatching.textContent = stats.matching;
+  if (stats.matching !== undefined) {
+    el.statMatching.textContent = stats.matching;
+    el.statsBadge.textContent = stats.matching;
+  }
   if (stats.selected !== undefined) el.statSelected.textContent = stats.selected;
 }
 

@@ -757,6 +757,9 @@
   "tooltipThemeToggle": {
     "message": "Switch theme"
   },
+  "tooltipStats": {
+    "message": "Capture stats (hover for details)"
+  },
   "themeToLight": {
     "message": "Switch to light theme"
   },

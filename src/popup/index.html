@@ -23,8 +23,36 @@
         <div class="header-title">
           <h1>Open Download</h1>
         </div>
+        <div class="status-indicator" id="status-indicator" aria-live="polite" data-i18n-title="statusListeningHint">
+          <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+          <span id="status-text"></span>
+        </div>
       </div>
       <div class="header-right">
+        <div class="stats-trigger" id="stats-trigger" tabindex="0" data-i18n-aria-label="tooltipStats">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 3v18h18"/>
+            <rect x="7" y="12" width="3" height="6"/>
+            <rect x="12" y="8" width="3" height="10"/>
+            <rect x="17" y="5" width="3" height="13"/>
+          </svg>
+          <span class="stats-badge" id="stats-badge">0</span>
+          <div class="stats-popover" id="stats-popover">
+            <div class="stat"><span class="stat-label" data-i18n="statCaptured"></span><span class="stat-value" id="stat-total">0</span></div>
+            <div class="stat"><span class="stat-label" data-i18n="statDownloaded"></span><span class="stat-value" id="stat-downloaded">0</span></div>
+            <div class="stat"><span class="stat-label" data-i18n="statFailed"></span><span class="stat-value" id="stat-failed">0</span></div>
+            <div class="stat"><span class="stat-label" data-i18n="statMatching"></span><span class="stat-value" id="stat-matching">0</span></div>
+            <div class="stat"><span class="stat-label" data-i18n="statSelected"></span><span class="stat-value" id="stat-selected">0</span></div>
+            <span class="capacity-hint" id="capacity-hint" hidden></span>
+          </div>
+        </div>
+        <div class="site-row site-chip" id="site-row" hidden>
+          <span class="site-info" id="site-info"></span>
+          <button class="site-action site-toggle" id="btn-site-toggle" type="button">
+            <svg class="site-pause" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            <svg class="site-resume" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>
+          </button>
+        </div>
         <label class="switch" data-i18n-aria-label="statusListeningHint">
           <input type="checkbox" id="toggle-listening" data-i18n-aria-label="statusListeningHint">
           <span class="slider" aria-hidden="true"></span>
@@ -46,21 +74,6 @@
         </button>
       </div>
     </header>
-
-    <div class="status-bar">
-      <div class="status-indicator" id="status-indicator" aria-live="polite" data-i18n-title="statusListeningHint">
-        <span class="status-dot" id="status-dot" aria-hidden="true"></span>
-        <span id="status-text"></span>
-      </div>
-      <span class="capacity-hint" id="capacity-hint" hidden></span>
-      <div class="site-row site-chip" id="site-row" hidden>
-        <span class="site-info" id="site-info"></span>
-        <button class="site-action site-toggle" id="btn-site-toggle" type="button">
-          <svg class="site-pause" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-          <svg class="site-resume" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>
-        </button>
-      </div>
-    </div>
 
     <!-- 首次使用引导：默认监听关闭时给出明确的三步路径与隐私说明 -->
     <section class="guide" id="guide" hidden aria-labelledby="guide-heading">
@@ -91,47 +104,7 @@
       <button class="notice-action" id="btn-stale-fix" data-i18n="staleStatusFix"></button>
     </div>
 
-    <div class="stats-bar" role="group" data-i18n-aria-label="statCaptured">
-      <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
-          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
-        </svg>
-        <span class="stat-value" id="stat-total">0</span>
-        <span class="stat-label" data-i18n="statCaptured"></span>
-      </div>
-      <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
-        </svg>
-        <span class="stat-value" id="stat-downloaded">0</span>
-        <span class="stat-label" data-i18n="statDownloaded"></span>
-      </div>
-      <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9"/><path d="M9 9l6 6"/><path d="M15 9l-6 6"/>
-        </svg>
-        <span class="stat-value" id="stat-failed">0</span>
-        <span class="stat-label" data-i18n="statFailed"></span>
-      </div>
-      <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/>
-        </svg>
-        <span class="stat-value" id="stat-matching">0</span>
-        <span class="stat-label" data-i18n="statMatching"></span>
-      </div>
-      <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>
-        </svg>
-        <span class="stat-value" id="stat-selected">0</span>
-        <span class="stat-label" data-i18n="statSelected"></span>
-      </div>
-    </div>
-
     <!-- 第二段：挑选 -->
-    <div class="section-band" aria-hidden="true"></div>
     <div class="tabs-row">
       <div class="media-tabs" id="media-tabs" role="tablist" data-i18n-aria-label="tabImage">
         <button class="tab active" data-media-type="image" role="tab" aria-selected="true">

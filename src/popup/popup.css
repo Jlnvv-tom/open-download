@@ -152,19 +152,7 @@ body {
   transform: translateX(16px);
 }
 
-/* ─── Status Bar（监听状态 + 容量警示 + 站点开关，三合一） ─── */
-
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
-  font-size: 11px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
+/* ─── 状态指示器（已并入单行 Header） ─── */
 
 .status-indicator {
   display: flex;
@@ -2113,4 +2101,157 @@ body.lightbox-open {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ─── 单行 Header：监听状态与站点开关并入标题行 ─── */
+
+.header-left {
+  min-width: 0;
+}
+
+.header .status-indicator {
+  gap: 5px;
+  margin-left: 2px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.header .status-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.header .site-chip {
+  margin-left: 0;
+  gap: 5px;
+}
+
+.header .site-info {
+  max-width: 120px;
+}
+
+.header .site-toggle {
+  width: 24px;
+  height: 20px;
+}
+
+/* 容量警示只在接近上限时出现，收进统计浮层，不再单独占一行 */
+.capacity-hint {
+  flex-shrink: 0;
+  max-width: 240px;
+  margin-left: auto;
+  font-size: 11px;
+}
+
+/* ─── 统计信息收进 Header 图标浮层 ─── */
+
+.stats-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.stats-trigger:hover,
+.stats-trigger:focus-visible {
+  border-color: var(--border);
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+
+.stats-badge {
+  min-width: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.stats-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  display: none;
+  width: 176px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+}
+
+.stats-trigger:hover .stats-popover,
+.stats-trigger:focus .stats-popover,
+.stats-trigger:focus-within .stats-popover {
+  display: block;
+}
+
+.stats-popover .stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.stats-popover .stat-label {
+  display: inline;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.stats-popover .stat-value {
+  font-size: 12px;
+}
+
+.stats-popover .capacity-hint {
+  display: block;
+  margin: 6px 0 0;
+  max-width: none;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.stats-popover .capacity-hint[hidden] {
+  display: none;
+}
+
+/* ─── 空状态：脱离卡片网格，整块居中 ─── */
+
+.image-list.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-list.is-empty .empty-state,
+.image-list.card-mode .empty-state {
+  width: min(420px, 100%);
+  max-width: 100%;
+  padding: 24px 16px;
+}
+
+.image-list.card-mode .empty-state {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.empty-state p,
+.empty-state small {
+  max-width: 100%;
+  word-break: break-word;
 }

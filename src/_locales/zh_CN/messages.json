@@ -757,6 +757,9 @@
   "tooltipThemeToggle": {
     "message": "切换界面主题"
   },
+  "tooltipStats": {
+    "message": "捕获统计（悬停查看明细）"
+  },
   "themeToLight": {
     "message": "切换到浅色模式"
   },

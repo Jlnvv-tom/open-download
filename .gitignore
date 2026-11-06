@@ -46,3 +46,4 @@ Thumbs.db
 # Chrome extension local state
 *.pem
 .zcode/
+.codebuddy/
