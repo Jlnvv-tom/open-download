@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "Open Download - 网络图片批量下载器"
+    "message": "Open Download - 网络媒体批量下载器"
   },
   "extDesc": {
     "message": "监听所有网站的网络请求，自动识别并批量下载图片和视频资源"
@@ -416,25 +416,25 @@
     "message": "视频"
   },
   "optionsCaptureTypesHint": {
-    "message": "不勾选任何类型时将捕获全部支持的类型"
+    "message": "留空表示捕获全部类型；只影响今后捕获，不改变已有列表"
   },
   "optionsExcludeDomains": {
     "message": "排除域名 (每行一个)"
   },
   "optionsExcludeDomainsHint": {
-    "message": "这些域名的图片请求将被忽略"
+    "message": "这些域名的图片与视频请求将被忽略；只影响今后捕获"
   },
   "optionsExtensions": {
     "message": "仅捕获扩展名 (逗号分隔)"
   },
   "optionsExtensionsHint": {
-    "message": "留空表示捕获所有支持的图片和视频类型"
+    "message": "留空表示捕获所有支持的图片和视频类型；只影响今后捕获"
   },
   "optionsDedupe": {
     "message": "URL 去重"
   },
   "optionsDedupeHint": {
-    "message": "相同 URL 的资源只捕获一次"
+    "message": "完整 URL（含查询参数）相同的资源只捕获一次"
   },
   "optionsSaveBtn": {
     "message": "保存设置"
@@ -502,5 +502,277 @@
   },
   "errorInvalidZipParams": {
     "message": "ZIP 打包参数无效"
+  },
+
+  "guideTitle": {
+    "message": "三步开始使用"
+  },
+  "guideStep1": {
+    "message": "开启捕获"
+  },
+  "guideStep2": {
+    "message": "刷新或重新打开目标网页"
+  },
+  "guideStep3": {
+    "message": "回到这里挑选并下载"
+  },
+  "guideAction": {
+    "message": "开启捕获并刷新当前页面"
+  },
+  "guideLater": {
+    "message": "暂不开启"
+  },
+  "guidePrivacy": {
+    "message": "数据只保存在本机，不上传，也不拦截或修改网页请求"
+  },
+  "guideAfterRefresh": {
+    "message": "页面正在刷新，稍后回到这里查看捕获结果"
+  },
+  "statusListeningHint": {
+    "message": "已开启：新加载的媒体会自动出现在这里"
+  },
+  "statusStoppedHint": {
+    "message": "默认关闭以保护隐私；开启后需刷新页面才会捕获"
+  },
+  "emptyActionRefresh": {
+    "message": "刷新当前页面"
+  },
+  "emptyHintRefresh": {
+    "message": "捕获发生在页面加载时，刷新后才会出现资源"
+  },
+  "emptyActionReset": {
+    "message": "清除筛选条件"
+  },
+  "emptyHintNoMatch": {
+    "message": "当前筛选条件可能过严，资源也可能在另一个类型标签下"
+  },
+
+  "scopeViewOnly": {
+    "message": "以下只影响当前列表，不会删除记录"
+  },
+  "scopeCaptureTime": {
+    "message": "影响今后捕获"
+  },
+  "filterActiveCount": {
+    "message": "已生效 $1 项"
+  },
+  "btnFilter": {
+    "message": "筛选"
+  },
+  "btnFilterReset": {
+    "message": "重置全部"
+  },
+  "btnFilterClose": {
+    "message": "收起筛选"
+  },
+
+  "planTitle": {
+    "message": "确认下载"
+  },
+  "planScopeLabel": {
+    "message": "下载范围"
+  },
+  "planScopeSelected": {
+    "message": "已选中的 $1 项"
+  },
+  "planScopeFiltered": {
+    "message": "当前列表的 $1 项"
+  },
+  "planHiddenSelected": {
+    "message": "其中 $1 项不在当前列表里，仍会被下载"
+  },
+  "planOnlyVisible": {
+    "message": "仅下载当前列表"
+  },
+  "planClearHidden": {
+    "message": "清除隐藏选中项"
+  },
+  "planItems": {
+    "message": "$1 个资源 · 合计约 $2"
+  },
+  "planOutput": {
+    "message": "预计产物"
+  },
+  "planOutputDescription": {
+    "message": "$1 个 ZIP 分卷 + $2 个独立文件"
+  },
+  "planOutputZipOnly": {
+    "message": "$1 个 ZIP 分卷"
+  },
+  "planOutputDirectOnly": {
+    "message": "$1 个独立文件（不打包）"
+  },
+  "btnDownloadIdle": {
+    "message": "下载"
+  },
+  "planSavePath": {
+    "message": "保存到 $1"
+  },
+  "planStrategyLabel": {
+    "message": "下载方式"
+  },
+  "planStrategyHint": {
+    "message": "自动会按文件大小与媒体类型决定打包或逐条直下"
+  },
+  "planRiskCookies": {
+    "message": "需要登录或跨域的资源可能失败，可在设置中开启「打包时携带 Cookie」"
+  },
+  "planRiskVolume": {
+    "message": "大批次会自动分卷，不会只得到一个 ZIP"
+  },
+  "planCapped": {
+    "message": "单次最多 $1 项，超出的不会下载"
+  },
+  "planCancelNoZip": {
+    "message": "逐条下载可中途取消，ZIP 打包阶段暂不支持取消"
+  },
+  "btnCancel": {
+    "message": "取消"
+  },
+  "btnStartDownload": {
+    "message": "开始下载"
+  },
+  "btnDownloadN": {
+    "message": "下载 $1 项"
+  },
+  "tooltipDownloadHint": {
+    "message": "先确认下载计划"
+  },
+
+  "progressTitle": {
+    "message": "正在下载，关闭弹窗不会中断"
+  },
+  "btnCancelBatch": {
+    "message": "取消逐条下载"
+  },
+
+  "resultTitleDone": {
+    "message": "下载完成"
+  },
+  "resultTitleFailed": {
+    "message": "下载未完成"
+  },
+  "resultSucceeded": {
+    "message": "成功 $1"
+  },
+  "resultFailed": {
+    "message": "失败 $1"
+  },
+  "resultVolumes": {
+    "message": "分 $1 卷打包"
+  },
+  "resultVideoDirect": {
+    "message": "视频 $1 个逐条下载"
+  },
+  "resultDirect": {
+    "message": "已改为逐条下载，未打包"
+  },
+  "resultCapped": {
+    "message": "本次只处理了 $1 条中的前 $2 条"
+  },
+  "resultFailureList": {
+    "message": "失败明细"
+  },
+  "resultNoFailures": {
+    "message": "没有失败项"
+  },
+  "resultOpenFolder": {
+    "message": "打开下载文件夹"
+  },
+  "resultCopy": {
+    "message": "复制结果"
+  },
+  "resultCopied": {
+    "message": "已复制到剪贴板"
+  },
+  "resultRetry": {
+    "message": "重试失败项"
+  },
+  "resultClose": {
+    "message": "关闭"
+  },
+  "resultSavedHint": {
+    "message": "结果保存在本机，关掉弹窗后下次打开仍可查看"
+  },
+  "lastResult": {
+    "message": "上次下载：成功 $1 · 失败 $2"
+  },
+  "lastResultView": {
+    "message": "查看"
+  },
+  "lastResultDismiss": {
+    "message": "忽略"
+  },
+
+  "staleStatus": {
+    "message": "有 $1 项状态停留在「下载中」，可能已过期"
+  },
+  "staleStatusFix": {
+    "message": "重置状态"
+  },
+
+  "optionsScopeCapture": {
+    "message": "影响今后捕获"
+  },
+  "optionsScopeDownload": {
+    "message": "影响后续下载"
+  },
+  "optionsPrivacySection": {
+    "message": "本机数据"
+  },
+  "optionsPrivacyText": {
+    "message": "捕获记录与设置只保存在本机，不会上传，也不拦截或修改网页请求。"
+  },
+  "optionsRecordCount": {
+    "message": "当前保存 $1 条记录"
+  },
+  "optionsClearRecords": {
+    "message": "清空所有捕获记录"
+  },
+  "optionsClearRecordsConfirm": {
+    "message": "确定清空所有已捕获的记录？"
+  },
+  "optionsInvalidSize": {
+    "message": "最小文件大小不能大于最大文件大小"
+  },
+  "optionsRecordsCleared": {
+    "message": "已清空捕获记录"
+  },
+
+  "ariaSelectItem": {
+    "message": "选择 $1"
+  },
+  "ariaToggleGroup": {
+    "message": "切换分组 $1"
+  },
+  "ariaClose": {
+    "message": "关闭"
+  },
+  "ariaMediaPreview": {
+    "message": "媒体预览"
+  },
+  "errorNoItemsToRetry": {
+    "message": "没有可重试的失败项"
+  },
+  "tooltipThemeToggle": {
+    "message": "切换界面主题"
+  },
+  "themeToLight": {
+    "message": "切换到浅色模式"
+  },
+  "themeToDark": {
+    "message": "切换到深色模式"
+  },
+  "optionsTheme": {
+    "message": "界面主题"
+  },
+  "optionsThemeSystem": {
+    "message": "跟随系统"
+  },
+  "optionsThemeLight": {
+    "message": "浅色"
+  },
+  "optionsThemeDark": {
+    "message": "深色"
   }
 }

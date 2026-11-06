@@ -12,8 +12,17 @@
   --content-size: 104px;
 }
 
+/* Popup 固定 640px：工具栏排布、网格列数与卡片尺寸全部稳定。
+   html 上锁死宽度并截断横向溢出，避免个别子元素把视口撑宽后右侧留白。 */
+html {
+  width: 640px;
+  overflow-x: hidden;
+}
+
 body {
   width: 640px;
+  max-width: 640px;
+  overflow-x: hidden;
   font-family: var(--font-sans);
   font-size: 12px;
   line-height: 1.5;
@@ -24,6 +33,7 @@ body {
 .app {
   display: flex;
   flex-direction: column;
+  width: 640px;
   max-height: 600px;
   overflow: hidden;
 }
@@ -71,7 +81,7 @@ body {
 
 .header-subtitle {
   margin-top: 1px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -283,7 +293,7 @@ body {
 }
 
 .stat-label {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
@@ -353,7 +363,7 @@ body {
   border-radius: var(--radius-pill);
   background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -523,11 +533,11 @@ body {
 .image-list.card-mode {
   display: grid;
   /* 列宽固定等于 --content-size：「内容大小」滑杆是精确的所见即所得；
-     预览区高度也直接取同一变量（见 .media-card-preview），保证是严格正方形 */
-  grid-template-columns: repeat(auto-fill, var(--content-size));
-  grid-auto-rows: auto;
-  column-gap: 12px;
-  row-gap: 14px;
+     预览区高度也直接取同一变量（见 .media-card-preview），保证是严格正方形。
+     变量必须带兜底值，否则整条声明失效会退化成单列自适应网格。 */
+  grid-template-columns: repeat(auto-fill, var(--content-size, 104px));
+  grid-auto-rows: max-content;
+  gap: 12px;
   padding: 10px 12px 14px;
   align-content: start;
   align-items: start;
@@ -572,7 +582,7 @@ body {
 }
 
 .filter-row label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -682,7 +692,7 @@ body {
 }
 
 .filter-row.checkbox-row small {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.35;
   color: var(--text-muted);
 }
@@ -818,7 +828,7 @@ body {
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .image-info {
@@ -839,7 +849,7 @@ body {
   display: flex;
   gap: 8px;
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -854,7 +864,7 @@ body {
   flex-shrink: 0;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -893,7 +903,7 @@ body {
   border-radius: var(--radius-pill);
   background: var(--bg);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
   opacity: 0.65;
   transition: all var(--duration) var(--ease);
@@ -941,21 +951,24 @@ body {
 
 /* ─── 卡片视图 ───
  *
- * 几何模型：网格列宽与预览区高度共用同一个变量 --content-size（严格正方形），
- * 媒体是预览区内的普通文档流块（100%×100% + object-fit），加载状态不影响布局；
- * 占位符绝对定位覆盖在预览区上，仅当图片加载失败时显示。
- * 右上角操作按钮必须绝对定位——cardTemplate 把 .item-action 输出在预览区之前，
- * 一旦回到文档流就会在卡片顶部多出一行按钮、把预览顶变形。
+ * 几何模型：网格列宽、卡片宽度与预览区高度共用 --content-size（严格正方形），
+ * 三处都带兜底值，变量缺失时也不会退化成自适应单列。
+ * 媒体、占位符、勾选框与右上角操作按钮全部绝对定位，不占文档流，
+ * 图片原始尺寸与加载状态都不会改变卡片或网格的尺寸。
  */
 
 .media-card {
   position: relative;
   display: flex;
   flex-direction: column;
+  /* 卡片宽度与网格列宽同源，避免内容把网格项撑出列外造成重叠 */
+  width: var(--content-size, 104px);
   min-width: 0;
+  align-self: start;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   cursor: pointer;
   contain: layout paint;
@@ -981,7 +994,8 @@ body {
   width: 100%;
   /* 高度直接钉死为列宽（网格列与这里共用 --content-size）：
      不经过 aspect-ratio 的宽度解析，图片/视频的加载状态也不会影响卡片布局 */
-  height: var(--content-size);
+  height: var(--content-size, 104px);
+  aspect-ratio: 1 / 1;
   flex-shrink: 0;
   overflow: hidden;
   border-bottom: 1px solid var(--border);
@@ -996,10 +1010,12 @@ body {
   z-index: 0;
 }
 
-/* 媒体走普通文档流（不绝对定位）：块级 + 100%×100% 正好填满预览区，
+/* 媒体绝对定位铺满预览区：图片原始尺寸完全不参与网格几何计算，
    由 object-fit 负责裁切；加载失败时 onerror 隐藏自身、显示占位符 */
 .media-card-preview > img,
 .media-card-preview > video {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -1110,7 +1126,7 @@ body {
   display: flex;
   gap: 6px;
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -1147,7 +1163,7 @@ body {
   border-radius: var(--radius-sm);
   background: rgba(15, 23, 42, 0.72);
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   pointer-events: none;
@@ -1207,7 +1223,7 @@ body {
   border-radius: var(--radius-pill);
   background: var(--bg);
   border: 1px solid var(--border);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 /* ─── Footer ─── */
@@ -1556,4 +1572,545 @@ body.lightbox-open {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ─── 三段式结构与新增反馈组件 ─── */
+
+[hidden] {
+  display: none !important;
+}
+
+/* 第一段：状态解释与首次引导 */
+.status-hint {
+  flex-shrink: 0;
+  padding: 4px 14px 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.guide {
+  flex-shrink: 0;
+  padding: 10px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--primary-soft);
+}
+
+.guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.guide h2 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.guide-later,
+.notice-action,
+.filter-reset,
+.filter-close,
+.empty-action {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.guide-later:hover,
+.notice-action:hover,
+.filter-reset:hover,
+.filter-close:hover,
+.empty-action:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.guide-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 8px 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.guide-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guide-actions .btn-primary {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.guide-note {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.guide-privacy {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.notice-row,
+.hidden-selection-bar,
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.notice-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.hidden-selection-bar {
+  background: var(--primary-soft);
+  color: var(--text);
+}
+
+.progress-row {
+  background: var(--primary-soft);
+  color: var(--text);
+}
+
+.progress-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 指标条降权：状态与行动才是主层级 */
+.stats-bar {
+  margin: 4px 14px;
+  padding: 4px 10px;
+  gap: 12px;
+}
+
+.section-band {
+  flex-shrink: 0;
+  height: 1px;
+  background: var(--border);
+}
+
+/* 第二段：筛选入口常驻显示已生效条件数 */
+.btn-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-filter-toggle:hover,
+.btn-filter-toggle.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 1 1 100%;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-scope {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.filter-head-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.filter-close {
+  padding: 1px 8px;
+  line-height: 1.4;
+}
+
+.empty-state small {
+  max-width: 380px;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-action {
+  padding: 5px 14px;
+  font-size: 12px;
+}
+
+/* 第三段：单一主行动，避免「下载选中 / 全部下载」语义混淆 */
+.footer > .btn-compact {
+  flex: 0 0 auto;
+  padding: 0 10px;
+}
+
+.footer > .btn-download {
+  flex: 1 1 auto;
+  min-width: 132px;
+}
+
+.selection-summary {
+  flex: 0 1 auto;
+}
+
+/* ─── 确认层与结果层 ─── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(10, 12, 20, 0.52);
+  backdrop-filter: blur(2px);
+  animation: fade-in var(--duration) var(--ease);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: calc(100% - 8px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog-head h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dialog-close {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dialog-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+
+.dialog-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.dialog-foot button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dialog-foot button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.plan-block {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.plan-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.plan-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.plan-options input {
+  accent-color: var(--primary);
+}
+
+.plan-value {
+  margin: 2px 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.plan-block small {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.plan-warning {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.plan-block .notice-actions {
+  margin-top: 6px;
+}
+
+.plan-notes p {
+  margin: 4px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-strong);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.result-metrics {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.result-metric {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.result-metric.ok { color: var(--success); }
+.result-metric.bad { color: var(--danger); }
+
+.result-details p {
+  margin: 3px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.result-failures {
+  margin: 12px 0;
+}
+
+#result-failure-list {
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 0;
+  list-style: none;
+}
+
+#result-failure-list li {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+#result-failure-list li strong {
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 600;
+}
+
+#result-failure-list li.result-empty {
+  color: var(--text-secondary);
+  border-bottom: 0;
+}
+
+.dialog-body > small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ─── 顶部减负：状态说明与指标文字收进 tip ─── */
+
+.header {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.stats-bar {
+  margin: 3px 14px;
+  padding: 3px 10px;
+  gap: 14px;
+}
+
+.stat {
+  cursor: help;
+}
+
+.stat-label {
+  display: none;
+}
+
+.content {
+  width: 100%;
+  min-width: 0;
+}
+
+.image-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.site-info {
+  min-width: 0;
+  max-width: 200px;
+}
+
+.site-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+}
+
+.theme-icon-sun,
+.theme-icon-moon {
+  pointer-events: none;
+}
+
+.notice-row > span:first-child,
+.hidden-selection-bar > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

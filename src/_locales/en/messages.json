@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "Open Download - Network Image Batch Downloader"
+    "message": "Open Download - Network Media Batch Downloader"
   },
   "extDesc": {
     "message": "Observe network requests on all sites and batch download the images and videos they load"
@@ -416,25 +416,25 @@
     "message": "Videos"
   },
   "optionsCaptureTypesHint": {
-    "message": "With nothing checked, all supported types are captured"
+    "message": "Empty means all types; applies to future captures only, existing records are unchanged"
   },
   "optionsExcludeDomains": {
     "message": "Excluded domains (one per line)"
   },
   "optionsExcludeDomainsHint": {
-    "message": "Requests from these domains will be ignored"
+    "message": "Image and video requests from these domains are ignored; applies to future captures only"
   },
   "optionsExtensions": {
     "message": "Only capture these extensions (comma separated)"
   },
   "optionsExtensionsHint": {
-    "message": "Leave empty to capture all supported images and videos"
+    "message": "Leave empty for all supported images and videos; applies to future captures only"
   },
   "optionsDedupe": {
     "message": "URL deduplication"
   },
   "optionsDedupeHint": {
-    "message": "Capture each URL only once"
+    "message": "Captures each full URL, including query parameters, only once"
   },
   "optionsSaveBtn": {
     "message": "Save settings"
@@ -502,5 +502,277 @@
   },
   "errorInvalidZipParams": {
     "message": "Invalid ZIP packing parameters"
+  },
+
+  "guideTitle": {
+    "message": "Get started in 3 steps"
+  },
+  "guideStep1": {
+    "message": "Turn on capture"
+  },
+  "guideStep2": {
+    "message": "Refresh or reopen the target page"
+  },
+  "guideStep3": {
+    "message": "Come back here to pick and download"
+  },
+  "guideAction": {
+    "message": "Turn on capture and refresh this page"
+  },
+  "guideLater": {
+    "message": "Not now"
+  },
+  "guidePrivacy": {
+    "message": "Data stays on this device. Nothing is uploaded, and requests are never blocked or modified"
+  },
+  "guideAfterRefresh": {
+    "message": "The page is reloading. Come back here to see captured media"
+  },
+  "statusListeningHint": {
+    "message": "Capture is on: newly loaded media appears here automatically"
+  },
+  "statusStoppedHint": {
+    "message": "Off by default for privacy. Refresh the page after enabling capture"
+  },
+  "emptyActionRefresh": {
+    "message": "Refresh this page"
+  },
+  "emptyHintRefresh": {
+    "message": "Capture happens while a page loads. Refresh to see results"
+  },
+  "emptyActionReset": {
+    "message": "Clear filters"
+  },
+  "emptyHintNoMatch": {
+    "message": "Filters may be too strict, or the media is under the other type tab"
+  },
+
+  "scopeViewOnly": {
+    "message": "These only affect the current list, not your records"
+  },
+  "scopeCaptureTime": {
+    "message": "Applies to future captures"
+  },
+  "filterActiveCount": {
+    "message": "$1 active"
+  },
+  "btnFilter": {
+    "message": "Filters"
+  },
+  "btnFilterReset": {
+    "message": "Reset all"
+  },
+  "btnFilterClose": {
+    "message": "Close filters"
+  },
+
+  "planTitle": {
+    "message": "Review download"
+  },
+  "planScopeLabel": {
+    "message": "Scope"
+  },
+  "planScopeSelected": {
+    "message": "$1 selected items"
+  },
+  "planScopeFiltered": {
+    "message": "$1 items in the current list"
+  },
+  "planHiddenSelected": {
+    "message": "$1 of them are hidden by the current filters and will still be downloaded"
+  },
+  "planOnlyVisible": {
+    "message": "Download visible only"
+  },
+  "planClearHidden": {
+    "message": "Clear hidden selection"
+  },
+  "planItems": {
+    "message": "$1 items · about $2 in total"
+  },
+  "planOutput": {
+    "message": "Expected output"
+  },
+  "planOutputDescription": {
+    "message": "$1 ZIP volumes + $2 separate files"
+  },
+  "planOutputZipOnly": {
+    "message": "$1 ZIP volumes"
+  },
+  "planOutputDirectOnly": {
+    "message": "$1 separate files (no ZIP)"
+  },
+  "btnDownloadIdle": {
+    "message": "Download"
+  },
+  "planSavePath": {
+    "message": "Saved to $1"
+  },
+  "planStrategyLabel": {
+    "message": "Transfer method"
+  },
+  "planStrategyHint": {
+    "message": "Auto picks ZIP or individual downloads based on file size and media type"
+  },
+  "planRiskCookies": {
+    "message": "Login-protected or cross-origin media may fail; enable \"Send cookies when packing\" in Settings"
+  },
+  "planRiskVolume": {
+    "message": "Large batches are split into several ZIP volumes, not one single archive"
+  },
+  "planCapped": {
+    "message": "Up to $1 items per batch; the rest will not be downloaded"
+  },
+  "planCancelNoZip": {
+    "message": "Individual downloads can be cancelled; ZIP packing cannot be cancelled mid-run"
+  },
+  "btnCancel": {
+    "message": "Cancel"
+  },
+  "btnStartDownload": {
+    "message": "Start download"
+  },
+  "btnDownloadN": {
+    "message": "Download $1"
+  },
+  "tooltipDownloadHint": {
+    "message": "Review the download plan first"
+  },
+
+  "progressTitle": {
+    "message": "Downloading. Closing this popup will not interrupt it"
+  },
+  "btnCancelBatch": {
+    "message": "Cancel individual downloads"
+  },
+
+  "resultTitleDone": {
+    "message": "Download complete"
+  },
+  "resultTitleFailed": {
+    "message": "Download did not complete"
+  },
+  "resultSucceeded": {
+    "message": "$1 succeeded"
+  },
+  "resultFailed": {
+    "message": "$1 failed"
+  },
+  "resultVolumes": {
+    "message": "Packed in $1 volumes"
+  },
+  "resultVideoDirect": {
+    "message": "$1 videos downloaded individually"
+  },
+  "resultDirect": {
+    "message": "Switched to individual downloads, no ZIP was created"
+  },
+  "resultCapped": {
+    "message": "Processed the first $2 of $1 selected items"
+  },
+  "resultFailureList": {
+    "message": "Failure details"
+  },
+  "resultNoFailures": {
+    "message": "No failures"
+  },
+  "resultOpenFolder": {
+    "message": "Open downloads folder"
+  },
+  "resultCopy": {
+    "message": "Copy report"
+  },
+  "resultCopied": {
+    "message": "Copied to clipboard"
+  },
+  "resultRetry": {
+    "message": "Retry failed items"
+  },
+  "resultClose": {
+    "message": "Close"
+  },
+  "resultSavedHint": {
+    "message": "Kept on this device; you can review it next time you open the popup"
+  },
+  "lastResult": {
+    "message": "Last download: $1 succeeded · $2 failed"
+  },
+  "lastResultView": {
+    "message": "View"
+  },
+  "lastResultDismiss": {
+    "message": "Dismiss"
+  },
+
+  "staleStatus": {
+    "message": "$1 items are still marked as downloading; their status may be stale"
+  },
+  "staleStatusFix": {
+    "message": "Reset status"
+  },
+
+  "optionsScopeCapture": {
+    "message": "Applies to future captures"
+  },
+  "optionsScopeDownload": {
+    "message": "Applies to future downloads"
+  },
+  "optionsPrivacySection": {
+    "message": "Data on this device"
+  },
+  "optionsPrivacyText": {
+    "message": "Capture records and settings stay on this device. Nothing is uploaded, and requests are never blocked or modified."
+  },
+  "optionsRecordCount": {
+    "message": "$1 records stored on this device"
+  },
+  "optionsClearRecords": {
+    "message": "Clear all captured records"
+  },
+  "optionsClearRecordsConfirm": {
+    "message": "Clear all captured records?"
+  },
+  "optionsInvalidSize": {
+    "message": "Minimum size cannot exceed maximum size"
+  },
+  "optionsRecordsCleared": {
+    "message": "Captured records cleared"
+  },
+
+  "ariaSelectItem": {
+    "message": "Select $1"
+  },
+  "ariaToggleGroup": {
+    "message": "Toggle group $1"
+  },
+  "ariaClose": {
+    "message": "Close"
+  },
+  "ariaMediaPreview": {
+    "message": "Media preview"
+  },
+  "errorNoItemsToRetry": {
+    "message": "No failed items to retry"
+  },
+  "tooltipThemeToggle": {
+    "message": "Switch theme"
+  },
+  "themeToLight": {
+    "message": "Switch to light theme"
+  },
+  "themeToDark": {
+    "message": "Switch to dark theme"
+  },
+  "optionsTheme": {
+    "message": "Theme"
+  },
+  "optionsThemeSystem": {
+    "message": "Follow system"
+  },
+  "optionsThemeLight": {
+    "message": "Light"
+  },
+  "optionsThemeDark": {
+    "message": "Dark"
   }
 }

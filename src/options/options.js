@@ -2,10 +2,12 @@
 
 import { MESSAGE_TYPES, DEFAULT_SETTINGS } from '../lib/constants.js';
 import { applyI18n, t } from '../lib/i18n.js';
+import { applyTheme, watchSystemTheme } from '../lib/theme.js';
 
 const $ = (sel) => document.querySelector(sel);
 
 const fields = {
+  theme: $('#theme'),
   autoDownload: $('#auto-download'),
   savePath: $('#save-path'),
   fileNaming: $('#file-naming'),
@@ -32,6 +34,9 @@ async function loadSettings() {
   if (!res.success) return;
   const s = res.settings;
 
+  const theme = s.ui?.theme || DEFAULT_SETTINGS.ui.theme;
+  fields.theme.value = theme;
+  applyTheme(theme);
   fields.autoDownload.checked = s.autoDownload;
   fields.savePath.value = s.savePath;
   fields.fileNaming.value = s.fileNaming;
@@ -69,6 +74,7 @@ function collectSettings() {
   if (fields.captureVideo.checked) mediaTypes.push('video');
 
   return {
+    ui: { theme: fields.theme.value || DEFAULT_SETTINGS.ui.theme },
     autoDownload: fields.autoDownload.checked,
     savePath: fields.savePath.value || 'OpenDownload',
     fileNaming: fields.fileNaming.value,
@@ -94,10 +100,23 @@ function showToast(msg) {
   setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
+async function loadRecordCount() {
+  const res = await sendMessage(MESSAGE_TYPES.GET_STATUS);
+  const count = res?.imageCount ?? 0;
+  $('#record-count').textContent = t('optionsRecordCount', count);
+}
+
 $('#btn-save').addEventListener('click', async () => {
+  const minKB = parseInt(fields.minSize.value, 10) || 0;
+  const maxKB = parseInt(fields.maxSize.value, 10) || 0;
+  if (maxKB > 0 && minKB > maxKB) {
+    showToast(t('optionsInvalidSize'));
+    return;
+  }
   const settings = collectSettings();
   const res = await sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, { settings });
   if (res.success) {
+    applyTheme(fields.theme.value);
     showToast(t('optionsSaved'));
   } else {
     showToast(t('optionsSaveFailed', res.error || ''));
@@ -112,10 +131,26 @@ $('#btn-reset').addEventListener('click', async () => {
   if (res.success) {
     await loadSettings();
     showToast(t('optionsResetDone'));
+  } else {
+    showToast(t('optionsSaveFailed', res.error || ''));
+  }
+});
+
+$('#btn-clear-records').addEventListener('click', async () => {
+  if (!confirm(t('optionsClearRecordsConfirm'))) return;
+  const res = await sendMessage(MESSAGE_TYPES.CLEAR_IMAGES);
+  if (res.success !== false) {
+    await loadRecordCount();
+    showToast(t('optionsRecordsCleared'));
+  } else {
+    showToast(t('optionsSaveFailed', res.error || ''));
   }
 });
 
 // 静态文案与页面标题本地化（<title> 不在 applyI18n 的扫描范围内）
 applyI18n(document);
+applyTheme();
+watchSystemTheme();
 document.title = t('optionsTitle');
 loadSettings();
+loadRecordCount();

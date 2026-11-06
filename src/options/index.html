@@ -13,7 +13,22 @@
     <h1 data-i18n="optionsTitle"></h1>
 
     <section class="card">
-      <h2 data-i18n="optionsDownloadSection"></h2>
+      <h2 data-i18n="optionsTheme"></h2>
+      <div class="form-row">
+        <label data-i18n="optionsTheme"></label>
+        <select id="theme">
+          <option value="system" data-i18n="optionsThemeSystem"></option>
+          <option value="light" data-i18n="optionsThemeLight"></option>
+          <option value="dark" data-i18n="optionsThemeDark"></option>
+        </select>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-head">
+        <span data-i18n="optionsDownloadSection"></span>
+        <span class="scope-tag" data-i18n="optionsScopeDownload"></span>
+      </h2>
 
       <div class="form-row switch-row">
         <label>
@@ -61,7 +76,10 @@
     </section>
 
     <section class="card">
-      <h2 data-i18n="optionsFilterSection"></h2>
+      <h2 class="card-head">
+        <span data-i18n="optionsFilterSection"></span>
+        <span class="scope-tag" data-i18n="optionsScopeCapture"></span>
+      </h2>
 
       <div class="form-row">
         <label data-i18n="optionsMinSize"></label>
@@ -102,6 +120,15 @@
           <span data-i18n="optionsDedupe"></span>
         </label>
         <small data-i18n="optionsDedupeHint"></small>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 data-i18n="optionsPrivacySection"></h2>
+      <p class="privacy-text" data-i18n="optionsPrivacyText"></p>
+      <div class="data-row">
+        <span id="record-count"></span>
+        <button class="btn-secondary" id="btn-clear-records" data-i18n="optionsClearRecords"></button>
       </div>
     </section>
 

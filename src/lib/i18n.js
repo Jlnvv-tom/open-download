@@ -22,7 +22,8 @@ export function t(key, ...args) {
 
 /**
  * 替换静态 DOM 文案
- * 支持的属性：data-i18n（textContent）、data-i18n-placeholder、data-i18n-title
+ * 支持的属性：data-i18n（textContent）、data-i18n-placeholder、
+ * data-i18n-title、data-i18n-aria-label（纯图标按钮的无障碍名称）
  * @param {ParentNode} root - 扫描根节点，默认 document
  */
 export function applyI18n(root = document) {
@@ -36,5 +37,9 @@ export function applyI18n(root = document) {
 
   root.querySelectorAll('[data-i18n-title]').forEach(node => {
     node.title = t(node.dataset.i18nTitle);
+  });
+
+  root.querySelectorAll('[data-i18n-aria-label]').forEach(node => {
+    node.setAttribute('aria-label', t(node.dataset.i18nAriaLabel));
   });
 }

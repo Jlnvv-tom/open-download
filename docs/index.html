@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Open Download — 网络图片视频批量下载器</title>
+  <title>Open Download — 网络媒体批量下载器</title>
   <meta name="description" content="Open Download 是一款 Chrome 扩展，全局监听网页网络请求，自动识别图片和视频资源，支持筛选、预览与 ZIP 批量下载。数据仅存本地，零依赖、离线可用。">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
@@ -36,10 +36,10 @@
     <section class="hero">
       <div class="container hero-inner">
         <p class="hero-badge">Chrome Extension · Manifest V3 · v1.0.0</p>
-        <h1>网页里的图片和视频，<br><span class="hero-accent">一键批量打包带走</span></h1>
+        <h1>网页里的图片和视频，<br><span class="hero-accent">确认后一次批量带走</span></h1>
         <p class="hero-sub">
           Open Download 在浏览器后台全局监听网络请求，自动识别网页加载的图片与视频资源。
-          打开弹窗即可按类型、格式、大小、尺寸筛选，预览后打包成一个 ZIP 保存到本地。
+          打开弹窗即可按类型、格式、大小、尺寸筛选，下载前先看到本次会生成哪些文件，再决定开始。
         </p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="#install">立即安装</a>
@@ -48,7 +48,7 @@
         <ul class="hero-points">
           <li>数据仅存本地，不上传任何服务器</li>
           <li>零依赖原生实现，离线可用</li>
-          <li>ZIP 打包在后台完成，关闭弹窗不中断</li>
+          <li>打包在后台完成，结果与失败原因可在下次打开时查看</li>
         </ul>
       </div>
     </section>
@@ -71,21 +71,21 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
             </div>
             <h3>多维筛选</h3>
-            <p>媒体类型、扩展名、文件大小、图片宽高、域名排除、关键词搜索，层层过滤，快速定位目标资源。</p>
+            <p>媒体类型、扩展名、文件大小、图片宽高、捕获来源与关键词搜索，层层过滤，并常驻显示已生效的条件数。</p>
           </article>
           <article class="feature-card">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             </div>
             <h3>双视图预览</h3>
-            <p>信息密集的列表视图与沉浸式卡片网格自由切换，视频支持内嵌预览，选择状态跨视图保留。</p>
+            <p>信息密集的列表视图与沉浸式卡片网格自由切换，点击缩略图打开大图或视频预览层，选择状态跨视图保留。</p>
           </article>
           <article class="feature-card">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </div>
-            <h3>ZIP 批量下载</h3>
-            <p>选中或全部资源在后台 offscreen 文档中串行抓取、打包为单个 ZIP，进度实时显示，关闭弹窗不中断。</p>
+            <h3>先确认，再下载</h3>
+            <p>下载前展示范围、合计大小、预计产物与保存目录。大批次按阈值自动分卷，视频与大文件默认逐条直下，结果可复制、可重试。</p>
           </article>
           <article class="feature-card">
             <div class="feature-icon" aria-hidden="true">
@@ -179,11 +179,12 @@
               <tr><td>保存目录</td><td>下载文件在「下载」文件夹下的子目录名</td><td>OpenDownload</td></tr>
               <tr><td>文件命名</td><td>保留原名 / 域名_文件名 / 序号 img_0001</td><td>保留原名</td></tr>
               <tr><td>并发下载数</td><td>逐个下载模式的同时下载数量（1-10）</td><td>3</td></tr>
+              <tr><td>视频逐条下载</td><td>视频不参与 ZIP 打包，避免大文件拖慢整批</td><td>开启</td></tr>
               <tr><td>大小过滤</td><td>按文件大小过滤捕获的资源（KB，0 不限制）</td><td>不限制</td></tr>
               <tr><td>捕获媒体类型</td><td>勾选捕获图片 / 视频，全不勾选则捕获全部</td><td>全选</td></tr>
               <tr><td>排除域名</td><td>忽略指定域名的媒体请求</td><td>空</td></tr>
               <tr><td>仅捕获扩展名</td><td>扩展名白名单，留空捕获全部支持类型</td><td>空</td></tr>
-              <tr><td>URL 去重</td><td>相同地址只捕获一次（相同查询参数视为同一资源）</td><td>开启</td></tr>
+              <tr><td>URL 去重</td><td>完整 URL（含查询参数）相同的资源只捕获一次</td><td>开启</td></tr>
               <tr><td>打包携带 Cookie</td><td>打包请求携带目标站点 Cookie，用于登录态资源</td><td>关闭</td></tr>
               <tr><td>站点级开关</td><td>在弹窗或页面右键菜单中单独暂停某个站点的捕获</td><td>跟随全局</td></tr>
             </tbody>
@@ -203,7 +204,7 @@
           </details>
           <details class="faq-item">
             <summary>ZIP 打包过程中可以关掉弹窗吗？</summary>
-            <p>可以。v1.2.0 起打包任务在后台 offscreen document 中执行，关闭弹窗不会中断；重新打开弹窗后可看到最新的下载状态。</p>
+            <p>可以。打包任务在后台 offscreen document 中执行，关闭弹窗不会中断；重新打开弹窗后可查看上次下载的完整结果与失败原因。逐条下载可中途取消，ZIP 打包阶段暂不支持取消。</p>
           </details>
           <details class="faq-item">
             <summary>m3u8 / HLS 视频会下载成完整视频吗？</summary>

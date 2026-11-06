@@ -75,7 +75,7 @@ describe('i18n 文案', () => {
   test('源码引用的 i18n key 都应该在双语文件中存在', () => {
     const patterns = [
       /\bt\(\s*'([A-Za-z][A-Za-z0-9]*)'/g,
-      /data-i18n(?:-placeholder|-title)?="([A-Za-z][A-Za-z0-9]*)"/g,
+      /data-i18n(?:-placeholder|-title|-aria-label)?="([A-Za-z][A-Za-z0-9]*)"/g,
       /__MSG_([A-Za-z0-9]+)__/g,
     ];
 

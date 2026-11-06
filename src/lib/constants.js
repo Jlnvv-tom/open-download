@@ -104,6 +104,22 @@ export const DEFAULT_SETTINGS = {
     sortBy: 'capturedAt', // 列表排序: 'capturedAt' | 'sharpness'（V16-03）
     // 评分提示条只出现一次（V16-05）：写入 true 后永不再现
     ratingPromptShown: false,
+    // 首次使用引导：完成或跳过后不再出现
+    onboardingDone: false,
+    // 主题：system 跟随系统，light / dark 为用户显式选择
+    theme: 'system',
+    // 「确认下载」里选择的传输策略，持久化避免重开弹窗后静默回退 auto
+    downloadStrategy: 'auto',
+    // Popup 展示期筛选条件，与 settings.filters（捕获期）作用域不同，单独存放
+    viewFilters: {
+      search: '',
+      minSize: '',
+      extensions: '',
+      minWidth: '',
+      minHeight: '',
+    },
+    // 最近一次批量下载结果：关闭弹窗后仍可追溯（只存摘要，不含文件内容）
+    lastDownloadResult: null,
   },
   filters: {
     domains: [],          // 排除的域名列表

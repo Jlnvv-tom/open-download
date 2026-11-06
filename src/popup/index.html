@@ -10,11 +10,11 @@
 <body>
   <!-- 静态文案统一由 data-i18n* 属性驱动，运行时由 applyI18n() 填充 -->
   <div class="app">
-    <!-- Header -->
+    <!-- 第一段：捕获状态 -->
     <header class="header">
       <div class="header-left">
         <div class="logo">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
@@ -22,17 +22,24 @@
         </div>
         <div class="header-title">
           <h1>Open Download</h1>
-          <p class="header-subtitle" data-i18n="appSubtitle"></p>
         </div>
       </div>
       <div class="header-right">
-        <span class="switch-label" id="switch-label"></span>
-        <label class="switch">
-          <input type="checkbox" id="toggle-listening">
-          <span class="slider"></span>
+        <label class="switch" data-i18n-aria-label="statusListeningHint">
+          <input type="checkbox" id="toggle-listening" data-i18n-aria-label="statusListeningHint">
+          <span class="slider" aria-hidden="true"></span>
         </label>
-        <button class="btn-icon" id="btn-settings" data-i18n-title="tooltipSettings">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <button class="btn-icon" id="btn-theme" data-i18n-title="tooltipThemeToggle" data-i18n-aria-label="tooltipThemeToggle">
+          <svg class="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+          </svg>
+          <svg class="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        <button class="btn-icon" id="btn-settings" data-i18n-title="tooltipSettings" data-i18n-aria-label="tooltipSettings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3.2"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 8.49 1.65 1.65 0 0 0 4.27 6.67l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 9.93 2.66V2.57a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
@@ -40,23 +47,53 @@
       </div>
     </header>
 
-    <!-- Status Bar：监听状态 + 容量警示 + 站点开关（三处合并为一行，省下两整行高度） -->
     <div class="status-bar">
-      <div class="status-indicator" id="status-indicator">
-        <span class="status-dot" id="status-dot"></span>
+      <div class="status-indicator" id="status-indicator" aria-live="polite" data-i18n-title="statusListeningHint">
+        <span class="status-dot" id="status-dot" aria-hidden="true"></span>
         <span id="status-text"></span>
       </div>
       <span class="capacity-hint" id="capacity-hint" hidden></span>
       <div class="site-row site-chip" id="site-row" hidden>
         <span class="site-info" id="site-info"></span>
-        <button class="site-action" id="btn-site-toggle" type="button"></button>
+        <button class="site-action site-toggle" id="btn-site-toggle" type="button">
+          <svg class="site-pause" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          <svg class="site-resume" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>
+        </button>
       </div>
     </div>
 
-    <!-- Metrics：五个指标各带图标，收在一个圆角容器里 -->
-    <div class="stats-bar">
+    <!-- 首次使用引导：默认监听关闭时给出明确的三步路径与隐私说明 -->
+    <section class="guide" id="guide" hidden aria-labelledby="guide-heading">
+      <div class="guide-head">
+        <h2 id="guide-heading" data-i18n="guideTitle"></h2>
+        <button class="guide-later" id="btn-guide-later" data-i18n="guideLater"></button>
+      </div>
+      <ol class="guide-steps">
+        <li><span class="step-no">1</span><span data-i18n="guideStep1"></span></li>
+        <li><span class="step-no">2</span><span data-i18n="guideStep2"></span></li>
+        <li><span class="step-no">3</span><span data-i18n="guideStep3"></span></li>
+      </ol>
+      <div class="guide-actions">
+        <button class="btn-primary" id="btn-guide-start" data-i18n="guideAction"></button>
+      </div>
+      <p class="guide-privacy" data-i18n="guidePrivacy"></p>
+    </section>
+
+    <div class="notice-row" id="last-result-row" hidden>
+      <span id="last-result-text"></span>
+      <span class="notice-actions">
+        <button class="notice-action" id="btn-last-result-view" data-i18n="lastResultView"></button>
+        <button class="notice-action" id="btn-last-result-dismiss" data-i18n="lastResultDismiss"></button>
+      </span>
+    </div>
+    <div class="notice-row" id="stale-row" hidden>
+      <span id="stale-text"></span>
+      <button class="notice-action" id="btn-stale-fix" data-i18n="staleStatusFix"></button>
+    </div>
+
+    <div class="stats-bar" role="group" data-i18n-aria-label="statCaptured">
       <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
           <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
         </svg>
@@ -64,56 +101,48 @@
         <span class="stat-label" data-i18n="statCaptured"></span>
       </div>
       <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3v12"/>
-          <path d="M7 10l5 5 5-5"/>
-          <path d="M5 21h14"/>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
         </svg>
         <span class="stat-value" id="stat-downloaded">0</span>
         <span class="stat-label" data-i18n="statDownloaded"></span>
       </div>
       <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M9 9l6 6"/>
-          <path d="M15 9l-6 6"/>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M9 9l6 6"/><path d="M15 9l-6 6"/>
         </svg>
         <span class="stat-value" id="stat-failed">0</span>
         <span class="stat-label" data-i18n="statFailed"></span>
       </div>
       <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M8.5 12.5l2.5 2.5 5-5"/>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/>
         </svg>
         <span class="stat-value" id="stat-matching">0</span>
         <span class="stat-label" data-i18n="statMatching"></span>
       </div>
       <div class="stat">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <circle cx="12" cy="12" r="3"/>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>
         </svg>
         <span class="stat-value" id="stat-selected">0</span>
         <span class="stat-label" data-i18n="statSelected"></span>
       </div>
     </div>
 
-    <!-- Tabs Row：媒体类型分段控件与格式 chip 同行 -->
+    <!-- 第二段：挑选 -->
+    <div class="section-band" aria-hidden="true"></div>
     <div class="tabs-row">
-      <div class="media-tabs" id="media-tabs">
-        <button class="tab active" data-media-type="image">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5L5 21"/>
+      <div class="media-tabs" id="media-tabs" role="tablist" data-i18n-aria-label="tabImage">
+        <button class="tab active" data-media-type="image" role="tab" aria-selected="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
           </svg>
           <span data-i18n="tabImage"></span> <span class="tab-count">0</span>
         </button>
-        <button class="tab" data-media-type="video">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/>
+        <button class="tab" data-media-type="video" role="tab" aria-selected="false">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/>
           </svg>
           <span data-i18n="tabVideo"></span> <span class="tab-count">0</span>
         </button>
@@ -121,92 +150,83 @@
       <div class="format-tabs" id="format-tabs"></div>
     </div>
 
-    <!-- Toolbar -->
     <div class="toolbar">
       <div class="search-box">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="7"/>
-          <path d="M20 20l-3.9-3.9"/>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.9-3.9"/>
         </svg>
-        <input type="text" id="search-input" data-i18n-placeholder="searchPlaceholder">
+        <input type="text" id="search-input" data-i18n-placeholder="searchPlaceholder" data-i18n-aria-label="searchPlaceholder">
       </div>
       <div class="toolbar-actions">
-        <button class="btn-icon" id="btn-filter" data-i18n-title="tooltipFilter">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 6h16"/>
-            <path d="M7 12h10"/>
-            <path d="M10 18h4"/>
+        <button class="btn-filter-toggle" id="btn-filter" data-i18n-title="tooltipFilter" data-i18n-aria-label="tooltipFilter" aria-expanded="false" aria-controls="filter-panel">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/>
+          </svg>
+          <span data-i18n="btnFilter"></span>
+          <span class="filter-count" id="filter-count" hidden>0</span>
+        </button>
+        <button class="btn-icon" id="btn-group" data-i18n-title="tooltipGroupByPage" data-i18n-aria-label="tooltipGroupByPage">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12.5L12 17l8-4.5"/>
           </svg>
         </button>
-        <button class="btn-icon" id="btn-group" data-i18n-title="tooltipGroupByPage">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/>
-            <path d="M4 12.5L12 17l8-4.5"/>
+        <button class="btn-icon" id="btn-scroll" data-i18n-title="tooltipScrollCapture" data-i18n-aria-label="tooltipScrollCapture">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v13"/><path d="M7 12l5 5 5-5"/>
           </svg>
         </button>
-        <button class="btn-icon" id="btn-scroll" data-i18n-title="tooltipScrollCapture">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 4v13"/>
-            <path d="M7 12l5 5 5-5"/>
+        <button class="btn-icon btn-icon-danger" id="btn-clear" data-i18n-title="tooltipClear" data-i18n-aria-label="tooltipClear">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6.5 7l.9 12.1A1.5 1.5 0 0 0 8.9 20.5h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/><path d="M10 11v6"/><path d="M14 11v6"/>
           </svg>
         </button>
-        <button class="btn-icon btn-icon-danger" id="btn-clear" data-i18n-title="tooltipClear">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 7h16"/>
-            <path d="M9 7V4h6v3"/>
-            <path d="M6.5 7l.9 12.1A1.5 1.5 0 0 0 8.9 20.5h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/>
-            <path d="M10 11v6"/>
-            <path d="M14 11v6"/>
-          </svg>
-        </button>
-        <div class="segmented">
-          <button class="btn-icon" id="btn-view-list" data-i18n-title="tooltipViewList">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 6h16"/>
-              <path d="M4 12h16"/>
-              <path d="M4 18h16"/>
+        <div class="segmented" role="group" data-i18n-aria-label="tooltipViewList">
+          <button class="btn-icon" id="btn-view-list" data-i18n-title="tooltipViewList" data-i18n-aria-label="tooltipViewList" aria-pressed="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/>
             </svg>
           </button>
-          <button class="btn-icon" id="btn-view-card" data-i18n-title="tooltipViewCard">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/>
-              <rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/>
-              <rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/>
-              <rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>
+          <button class="btn-icon" id="btn-view-card" data-i18n-title="tooltipViewCard" data-i18n-aria-label="tooltipViewCard" aria-pressed="false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/>
+              <rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>
             </svg>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Content：列表铺满剩余高度；筛选面板以浮层覆盖其上，不再挤压列表 -->
     <div class="content">
       <div class="image-list" id="image-list">
         <div class="empty-state">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
           </svg>
           <p data-i18n="emptyStateIdle"></p>
         </div>
       </div>
 
-      <!-- Filter Panel（浮层，显隐由 popup.js 切换 .open） -->
-      <div class="filter-panel" id="filter-panel">
+      <div class="filter-panel" id="filter-panel" role="dialog" data-i18n-aria-label="btnFilter">
+        <div class="filter-head">
+          <span class="filter-scope" data-i18n="scopeViewOnly"></span>
+          <div class="filter-head-actions">
+            <button class="filter-reset" id="btn-filter-reset" data-i18n="btnFilterReset"></button>
+            <button class="filter-close" id="btn-filter-close" data-i18n-title="btnFilterClose" data-i18n-aria-label="btnFilterClose">&#215;</button>
+          </div>
+        </div>
         <div class="filter-row">
           <label data-i18n="filterSource"></label>
-          <div class="source-control" id="source-filter">
-            <button class="source-option active" data-source="all" data-i18n="filterSourceAll"></button>
-            <button class="source-option" data-source="network" data-i18n="filterSourceNetwork"></button>
-            <button class="source-option" data-source="dom" data-i18n="filterSourceDom"></button>
+          <div class="source-control" id="source-filter" role="group" data-i18n-aria-label="filterSource">
+            <button class="source-option active" data-source="all" data-i18n="filterSourceAll" aria-pressed="true"></button>
+            <button class="source-option" data-source="network" data-i18n="filterSourceNetwork" aria-pressed="false"></button>
+            <button class="source-option" data-source="dom" data-i18n="filterSourceDom" aria-pressed="false"></button>
           </div>
         </div>
         <div class="filter-row">
           <label data-i18n="filterSortBy"></label>
-          <div class="source-control" id="sort-control">
-            <button class="source-option active" data-sort="capturedAt" data-i18n="sortCapturedAt"></button>
-            <button class="source-option" data-sort="sharpness" data-i18n="sortSharpness"></button>
+          <div class="source-control" id="sort-control" role="group" data-i18n-aria-label="filterSortBy">
+            <button class="source-option active" data-sort="capturedAt" data-i18n="sortCapturedAt" aria-pressed="true"></button>
+            <button class="source-option" data-sort="sharpness" data-i18n="sortSharpness" aria-pressed="false"></button>
           </div>
         </div>
         <div class="filter-row checkbox-row">
@@ -218,68 +238,63 @@
         </div>
         <div class="filter-row">
           <label data-i18n="filterMinSize"></label>
-          <input type="number" id="filter-min-size" placeholder="0" min="0">
+          <input type="number" id="filter-min-size" placeholder="0" min="0" data-i18n-aria-label="filterMinSize">
         </div>
         <div class="filter-row size-row">
           <label data-i18n="filterContentSize"></label>
           <div class="size-control">
-            <input type="range" id="content-size-range" min="84" max="180" step="4">
-            <input type="number" id="content-size-input" min="84" max="180" step="4">
+            <input type="range" id="content-size-range" min="84" max="180" step="4" data-i18n-aria-label="filterContentSize">
+            <input type="number" id="content-size-input" min="84" max="180" step="4" data-i18n-aria-label="filterContentSize">
           </div>
         </div>
         <div class="filter-row">
           <label data-i18n="filterMinDimensions"></label>
           <div class="dimension-control">
-            <input type="number" id="filter-min-width" data-i18n-placeholder="filterWidthPlaceholder" min="0">
-            <span class="dimension-separator">×</span>
-            <input type="number" id="filter-min-height" data-i18n-placeholder="filterHeightPlaceholder" min="0">
+            <input type="number" id="filter-min-width" data-i18n-placeholder="filterWidthPlaceholder" data-i18n-aria-label="filterWidthPlaceholder" min="0">
+            <span class="dimension-separator" aria-hidden="true">&#215;</span>
+            <input type="number" id="filter-min-height" data-i18n-placeholder="filterHeightPlaceholder" data-i18n-aria-label="filterHeightPlaceholder" min="0">
           </div>
         </div>
         <div class="filter-row">
           <label data-i18n="filterExtensions"></label>
-          <input type="text" id="filter-extensions" data-i18n-placeholder="filterExtensionsPlaceholder">
+          <input type="text" id="filter-extensions" data-i18n-placeholder="filterExtensionsPlaceholder" data-i18n-aria-label="filterExtensions">
         </div>
       </div>
     </div>
 
-    <!-- Footer -->
+    <!-- 第三段：拿走 -->
+    <div class="hidden-selection-bar" id="hidden-selection-bar" hidden>
+      <span id="hidden-selection-text"></span>
+      <div class="notice-actions">
+        <button class="notice-action" id="btn-only-visible"></button>
+        <button class="notice-action" id="btn-clear-hidden"></button>
+      </div>
+    </div>
+    <div class="progress-row" id="progress-row" hidden>
+      <span class="progress-text" id="progress-text" aria-live="polite"></span>
+      <button class="notice-action" id="btn-cancel-batch" data-i18n="btnCancelBatch" hidden></button>
+    </div>
+
     <footer class="footer">
       <div class="selection-summary" id="selection-summary" hidden>
-        <span class="selection-check">
+        <span class="selection-check" aria-hidden="true">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12.5l4.5 4.5L19 7.5"/>
           </svg>
         </span>
         <span class="selection-summary-text" id="selection-summary-text"></span>
       </div>
-      <button class="btn-secondary" id="btn-select-all" data-i18n="btnSelectAll"></button>
-      <button class="btn-secondary" id="btn-export" data-i18n="btnExport"></button>
-      <div class="download-group">
-        <button class="btn-primary download-main" id="btn-download-selected">
-          <span class="btn-label" data-i18n="btnDownloadSelected"></span>
-          <span class="btn-count" id="btn-download-selected-count"></span>
-        </button>
-        <button class="btn-primary download-caret" id="btn-download-menu" data-i18n-title="tooltipDownloadMenu">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M7 10l5 5 5-5"/>
-          </svg>
-        </button>
-        <div class="strategy-menu" id="strategy-menu">
-          <button class="strategy-option active" data-strategy="auto" data-i18n="menuStrategyAuto"></button>
-          <button class="strategy-option" data-strategy="zip" data-i18n="menuStrategyZip"></button>
-          <button class="strategy-option" data-strategy="direct" data-i18n="menuStrategyDirect"></button>
-        </div>
-      </div>
-      <button class="btn-primary" id="btn-download-all">
-        <span class="btn-label" data-i18n="btnDownloadAll"></span>
-        <span class="btn-count" id="btn-download-all-count"></span>
+      <button class="btn-secondary btn-compact" id="btn-select-all" data-i18n="btnSelectAll"></button>
+      <button class="btn-secondary btn-compact" id="btn-export" data-i18n="btnExport"></button>
+      <button class="btn-primary btn-download" id="btn-download" data-i18n-title="tooltipDownloadHint" data-i18n-aria-label="tooltipDownloadHint">
+        <span class="btn-label" id="btn-download-label"></span>
+        <span class="btn-count" id="btn-download-count"></span>
       </button>
     </footer>
 
-    <!-- 评分提示条：累计成功下载达阈值后只出现一次，不占常驻高度 -->
     <div class="site-row rating-row" id="rating-row" hidden>
       <span class="site-info" data-i18n="ratingPrompt"></span>
-      <span class="rating-stars">
+      <span class="rating-stars" aria-hidden="true">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -288,30 +303,92 @@
       </span>
       <span class="site-row-actions">
         <button class="site-action rating-open" id="btn-rating-open" type="button" data-i18n="ratingAction"></button>
-        <button class="site-action" id="btn-rating-close" type="button" data-i18n-title="ratingDismiss" aria-label="x">×</button>
+        <button class="site-action" id="btn-rating-close" type="button" data-i18n-title="ratingDismiss" data-i18n-aria-label="ratingDismiss">&#215;</button>
       </span>
     </div>
   </div>
 
-  <!-- Lightbox（popup 内全屏预览层） -->
-  <div id="lightbox" hidden>
+  <!-- 确认层：把产物、范围、策略与上限在下载前一次性说清楚 -->
+  <div class="overlay" id="plan-overlay" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="plan-title">
+      <div class="dialog-head">
+        <h2 id="plan-title" data-i18n="planTitle"></h2>
+        <button class="dialog-close" id="btn-plan-close" data-i18n-title="ariaClose" data-i18n-aria-label="ariaClose">&#215;</button>
+      </div>
+      <div class="dialog-body">
+        <div class="plan-block">
+          <span class="plan-label" data-i18n="planScopeLabel"></span>
+          <div class="plan-options" id="plan-scope">
+            <label><input type="radio" name="plan-scope" value="selected"><span id="plan-scope-selected"></span></label>
+            <label><input type="radio" name="plan-scope" value="filtered"><span id="plan-scope-filtered"></span></label>
+          </div>
+          <p class="plan-warning" id="plan-hidden-note" hidden></p>
+          <div class="notice-actions" id="plan-hidden-actions" hidden>
+            <button class="notice-action" id="btn-plan-only-visible"></button>
+            <button class="notice-action" id="btn-plan-clear-hidden"></button>
+          </div>
+        </div>
+        <div class="plan-block">
+          <span class="plan-label" data-i18n="planOutput"></span>
+          <p class="plan-value" id="plan-items"></p>
+          <p class="plan-value" id="plan-output"></p>
+          <p class="plan-value" id="plan-save-path"></p>
+        </div>
+        <div class="plan-block">
+          <span class="plan-label" data-i18n="planStrategyLabel"></span>
+          <div class="plan-options" id="plan-strategy">
+            <label><input type="radio" name="plan-strategy" value="auto"><span data-i18n="menuStrategyAuto"></span></label>
+            <label><input type="radio" name="plan-strategy" value="zip"><span data-i18n="menuStrategyZip"></span></label>
+            <label><input type="radio" name="plan-strategy" value="direct"><span data-i18n="menuStrategyDirect"></span></label>
+          </div>
+          <small data-i18n="planStrategyHint"></small>
+        </div>
+        <div class="plan-notes" id="plan-notes"></div>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn-secondary" id="btn-plan-cancel" data-i18n="btnCancel"></button>
+        <button class="btn-primary" id="btn-plan-start" data-i18n="btnStartDownload"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 结果层：可追溯、可复制、可重试，替代一次性 alert -->
+  <div class="overlay" id="result-overlay" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="dialog-head">
+        <h2 id="result-title"></h2>
+        <button class="dialog-close" id="btn-result-close" data-i18n-title="ariaClose" data-i18n-aria-label="ariaClose">&#215;</button>
+      </div>
+      <div class="dialog-body">
+        <div class="result-metrics" id="result-metrics"></div>
+        <div class="result-details" id="result-details"></div>
+        <div class="result-failures">
+          <span class="plan-label" data-i18n="resultFailureList"></span>
+          <ul id="result-failure-list"></ul>
+        </div>
+        <small data-i18n="resultSavedHint"></small>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn-secondary" id="btn-result-folder" data-i18n="resultOpenFolder"></button>
+        <button class="btn-secondary" id="btn-result-copy" data-i18n="resultCopy"></button>
+        <button class="btn-secondary" id="btn-result-retry" data-i18n="resultRetry"></button>
+        <button class="btn-primary" id="btn-result-done" data-i18n="resultClose"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" hidden role="dialog" aria-modal="true" data-i18n-aria-label="ariaMediaPreview">
     <div id="lightbox-stage"></div>
     <div id="lightbox-caption"></div>
-    <button id="lightbox-close" class="lightbox-btn" data-i18n-title="tooltipClose">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6 6l12 12"/>
-        <path d="M18 6L6 18"/>
-      </svg>
+    <button id="lightbox-close" class="lightbox-btn" data-i18n-title="tooltipClose" data-i18n-aria-label="tooltipClose">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
     </button>
-    <button id="lightbox-prev" class="lightbox-btn" data-i18n-title="tooltipPrev">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 6l-6 6 6 6"/>
-      </svg>
+    <button id="lightbox-prev" class="lightbox-btn" data-i18n-title="tooltipPrev" data-i18n-aria-label="tooltipPrev">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 6l-6 6 6 6"/></svg>
     </button>
-    <button id="lightbox-next" class="lightbox-btn" data-i18n-title="tooltipNext">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10 6l6 6-6 6"/>
-      </svg>
+    <button id="lightbox-next" class="lightbox-btn" data-i18n-title="tooltipNext" data-i18n-aria-label="tooltipNext">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6l6 6-6 6"/></svg>
     </button>
   </div>
 

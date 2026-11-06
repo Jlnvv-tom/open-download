@@ -10,8 +10,8 @@
 
 | 字段 | 中文 | English |
 |------|------|---------|
-| 名称 | Open Download - 网络图片批量下载器 | Open Download - Network Media Batch Downloader |
-| 简短描述（≤132 字符） | 全局监听网页图片与视频，筛选预览后一键打包 ZIP 下载。数据仅存本地，无上报、离线可用。 | Capture images and videos from any site, filter and preview them, then batch download as a ZIP. Local-only, no telemetry. |
+| 名称 | Open Download - 网络媒体批量下载器 | Open Download - Network Media Batch Downloader |
+| 简短描述（≤132 字符） | 全局监听网页图片与视频，筛选预览后确认下载计划再批量带走；大文件自动分卷或逐条下载。数据仅存本地，无上报、离线可用。 | Capture images and videos from any site, review the download plan, then batch save. Local-only, no telemetry. |
 
 ## 2. 详细描述
 

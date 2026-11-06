@@ -1,8 +1,12 @@
 // popup/popup.js — Popup 交互逻辑
+//
+// 交互结构：捕获状态 → 挑选 → 确认下载计划 → 结果追溯。
+// 下载前把范围、产物、策略与上限说清楚；下载后用可复制、可重试的结果层替代一次性 alert。
 
 import {
   CAPACITY_WARNING_THRESHOLD,
   IMAGE_FORMAT_TABS,
+  MAX_BATCH_DOWNLOAD,
   MAX_CAPTURED_IMAGES,
   MEDIA_TYPES,
   MESSAGE_TYPES,
@@ -11,6 +15,7 @@ import {
 import { groupBySimilarity } from '../lib/image-hash.js';
 import { extractDomain, formatDuration, formatSize, getNormalizedExtension } from '../lib/utils.js';
 import { applyI18n, t } from '../lib/i18n.js';
+import { applyTheme, getTheme, watchSystemTheme } from '../lib/theme.js';
 
 // ─── DOM 引用 ──────────────────────────────────────────
 
@@ -20,20 +25,21 @@ const el = {
   toggle: $('#toggle-listening'),
   statusDot: $('#status-dot'),
   statusText: $('#status-text'),
+  statusIndicator: $('#status-indicator'),
   siteRow: $('#site-row'),
   siteInfo: $('#site-info'),
   btnSiteToggle: $('#btn-site-toggle'),
+  sitePause: $('.site-pause'),
+  siteResume: $('.site-resume'),
+  btnTheme: $('#btn-theme'),
+  themeSun: $('.theme-icon-sun'),
+  themeMoon: $('.theme-icon-moon'),
   ratingRow: $('#rating-row'),
   btnRatingOpen: $('#btn-rating-open'),
   btnRatingClose: $('#btn-rating-close'),
   btnSettings: $('#btn-settings'),
-  switchLabel: $('#switch-label'),
   selectionSummary: $('#selection-summary'),
   selectionSummaryText: $('#selection-summary-text'),
-  btnDownloadMenu: $('#btn-download-menu'),
-  strategyMenu: $('#strategy-menu'),
-  btnDownloadSelectedCount: $('#btn-download-selected-count'),
-  btnDownloadAllCount: $('#btn-download-all-count'),
   capacityHint: $('#capacity-hint'),
   statTotal: $('#stat-total'),
   statDownloaded: $('#stat-downloaded'),
@@ -44,12 +50,15 @@ const el = {
   formatTabs: $('#format-tabs'),
   searchInput: $('#search-input'),
   btnFilter: $('#btn-filter'),
+  filterCount: $('#filter-count'),
   btnViewList: $('#btn-view-list'),
   btnViewCard: $('#btn-view-card'),
   btnGroup: $('#btn-group'),
   btnScroll: $('#btn-scroll'),
   btnClear: $('#btn-clear'),
   filterPanel: $('#filter-panel'),
+  btnFilterReset: $('#btn-filter-reset'),
+  btnFilterClose: $('#btn-filter-close'),
   sourceFilter: $('#source-filter'),
   sortControl: $('#sort-control'),
   mergeSimilar: $('#merge-similar'),
@@ -63,8 +72,52 @@ const el = {
   imageList: $('#image-list'),
   btnSelectAll: $('#btn-select-all'),
   btnExport: $('#btn-export'),
-  btnDownloadSelected: $('#btn-download-selected'),
-  btnDownloadAll: $('#btn-download-all'),
+  btnDownload: $('#btn-download'),
+  btnDownloadLabel: $('#btn-download-label'),
+  btnDownloadCount: $('#btn-download-count'),
+  guide: $('#guide'),
+  btnGuideStart: $('#btn-guide-start'),
+  btnGuideLater: $('#btn-guide-later'),
+  lastResultRow: $('#last-result-row'),
+  lastResultText: $('#last-result-text'),
+  btnLastResultView: $('#btn-last-result-view'),
+  btnLastResultDismiss: $('#btn-last-result-dismiss'),
+  staleRow: $('#stale-row'),
+  staleText: $('#stale-text'),
+  btnStaleFix: $('#btn-stale-fix'),
+  hiddenSelectionBar: $('#hidden-selection-bar'),
+  hiddenSelectionText: $('#hidden-selection-text'),
+  btnOnlyVisible: $('#btn-only-visible'),
+  btnClearHidden: $('#btn-clear-hidden'),
+  progressRow: $('#progress-row'),
+  progressText: $('#progress-text'),
+  btnCancelBatch: $('#btn-cancel-batch'),
+  planOverlay: $('#plan-overlay'),
+  btnPlanClose: $('#btn-plan-close'),
+  planScope: $('#plan-scope'),
+  planScopeSelected: $('#plan-scope-selected'),
+  planScopeFiltered: $('#plan-scope-filtered'),
+  planHiddenNote: $('#plan-hidden-note'),
+  planHiddenActions: $('#plan-hidden-actions'),
+  btnPlanOnlyVisible: $('#btn-plan-only-visible'),
+  btnPlanClearHidden: $('#btn-plan-clear-hidden'),
+  planItems: $('#plan-items'),
+  planOutput: $('#plan-output'),
+  planSavePath: $('#plan-save-path'),
+  planStrategy: $('#plan-strategy'),
+  planNotes: $('#plan-notes'),
+  btnPlanCancel: $('#btn-plan-cancel'),
+  btnPlanStart: $('#btn-plan-start'),
+  resultOverlay: $('#result-overlay'),
+  resultTitle: $('#result-title'),
+  btnResultClose: $('#btn-result-close'),
+  resultMetrics: $('#result-metrics'),
+  resultDetails: $('#result-details'),
+  resultFailureList: $('#result-failure-list'),
+  btnResultFolder: $('#btn-result-folder'),
+  btnResultCopy: $('#btn-result-copy'),
+  btnResultRetry: $('#btn-result-retry'),
+  btnResultDone: $('#btn-result-done'),
   lightbox: $('#lightbox'),
   lightboxStage: $('#lightbox-stage'),
   lightboxCaption: $('#lightbox-caption'),
@@ -74,6 +127,8 @@ const el = {
 };
 
 // ─── 状态 ──────────────────────────────────────────────
+
+const DEFAULT_VIEW_FILTERS = { search: '', minSize: '', extensions: '', minWidth: '', minHeight: '' };
 
 let allMedia = [];
 let selectedIds = new Set();
@@ -87,28 +142,37 @@ let sourceFilter = 'all';
 let siteRules = {};
 let currentDomain = '';
 let scrollRunning = false;
-// 内容级筛选（V16-03）
 let mergeSimilar = false;
 let sortBy = 'capturedAt';
 let metricsRunning = false;
 let metricsDone = 0;
 let metricsTotal = 0;
-// 折叠状态为内存态，不持久化
 const collapsedGroups = new Set();
-// 相似组默认只显示最清晰的一张，展开过的组记在这里（与页面分组的默认展开语义相反，故分开存）
 const expandedGroups = new Set();
-// 累计成功下载数达到该值后才考虑展示一次评分引导（V16-05）
 const RATING_PROMPT_THRESHOLD = 20;
-// 「下载选中」的传输策略：内存态（popup 关闭后重置为 auto，不写入 settings）
-let downloadStrategy = 'auto';
 const DEFAULT_CONTENT_SIZE = 104;
-let contentSize = DEFAULT_CONTENT_SIZE;
 const EAGER_PREVIEW_COUNT = 36;
 
-// lightbox 预览层状态（快照导航，不受列表重渲影响）
+let contentSize = DEFAULT_CONTENT_SIZE;
+let downloadStrategy = 'auto';
+let onboardingDone = false;
+let viewFilters = { ...DEFAULT_VIEW_FILTERS };
+let lastResult = null;
+
+let plan = null;
+let currentResult = null;
+let downloadInFlight = false;
+let activeZipTotal = 0;
+let activeZipCompleted = 0;
+let zipProgressSeen = false;
+
 let lightboxOpen = false;
 let lightboxItems = [];
 let lightboxIndex = -1;
+
+// 弹层焦点管理：打开时记住来源，关闭时还原，Tab 在层内循环
+let activeOverlay = null;
+let focusReturnTo = null;
 
 // ─── 消息通信 ──────────────────────────────────────────
 
@@ -118,6 +182,10 @@ function sendMessage(type, payload = {}) {
       resolve(response || { success: false });
     });
   });
+}
+
+function savePref(uiPartial) {
+  return sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, { settings: { ui: uiPartial } });
 }
 
 // ─── 工具 ──────────────────────────────────────────────
@@ -138,12 +206,15 @@ function makeStamp(date = new Date()) {
 // ─── 初始化 ────────────────────────────────────────────
 
 async function init() {
-  // 静态文案先本地化，避免首屏闪现默认语言
   applyI18n(document);
+  // 先用跟随系统的默认主题上色，读到用户偏好后再校准，避免首屏闪一下
+  applyTheme();
+  watchSystemTheme(updateThemeButton);
 
   const settingsRes = await sendMessage(MESSAGE_TYPES.GET_SETTINGS);
   if (settingsRes.success) {
     settings = settingsRes.settings;
+    applyTheme(settings.ui?.theme || 'system');
     activeMediaType = settings.ui?.mediaType || MEDIA_TYPES.IMAGE;
     viewMode = settings.ui?.viewMode || 'list';
     groupByPage = Boolean(settings.ui?.groupByPage);
@@ -156,9 +227,17 @@ async function init() {
     contentSize = savedContentSize === undefined || savedContentSize === 132
       ? DEFAULT_CONTENT_SIZE
       : normalizeContentSize(savedContentSize);
+    downloadStrategy = settings.ui?.downloadStrategy || 'auto';
+    onboardingDone = Boolean(settings.ui?.onboardingDone);
+    lastResult = settings.ui?.lastDownloadResult || null;
+
+    viewFilters = { ...DEFAULT_VIEW_FILTERS, ...(settings.ui?.viewFilters || {}) };
+    el.searchInput.value = viewFilters.search || '';
+    el.filterMinSize.value = viewFilters.minSize || '';
+    el.filterExtensions.value = viewFilters.extensions || '';
     const savedMinDimensions = settings.filters?.minDimensions || {};
-    el.filterMinWidth.value = savedMinDimensions.width ? String(savedMinDimensions.width) : '';
-    el.filterMinHeight.value = savedMinDimensions.height ? String(savedMinDimensions.height) : '';
+    el.filterMinWidth.value = viewFilters.minWidth || (savedMinDimensions.width ? String(savedMinDimensions.width) : '');
+    el.filterMinHeight.value = viewFilters.minHeight || (savedMinDimensions.height ? String(savedMinDimensions.height) : '');
   }
 
   const status = await sendMessage(MESSAGE_TYPES.GET_STATUS);
@@ -171,27 +250,39 @@ async function init() {
     maybeShowRatingPrompt(status.stats);
   }
 
-  // 打开弹窗即视为「已查看」，清空扩展图标角标
   await sendMessage(MESSAGE_TYPES.MARK_CAPTURED_READ);
-
   await loadCurrentSite();
   await loadMedia();
   bindEvents();
+  updateThemeButton();
+  // 指标条只留图标 + 数字，文字标签收进 hover tip
+  document.querySelectorAll('.stat').forEach(stat => {
+    const label = stat.querySelector('.stat-label');
+    if (label) stat.title = t(label.dataset.i18n);
+  });
+  updateGuide();
+  updateLastResultRow();
+  updateStaleRow();
 }
 
-/**
- * 读取当前标签页站点，用于站点级捕获开关（chrome:// 等特殊页不显示站点行）
- */
 async function loadCurrentSite() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = tab?.url || '';
-    // <all_urls> host 权限下可读 tab.url；非 http(s) 页面拿不到有效站点
     currentDomain = /^https?:/i.test(url) ? extractDomain(url) : '';
   } catch {
     currentDomain = '';
   }
   updateSiteRow();
+}
+
+async function refreshActiveTab() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id != null) await chrome.tabs.reload(tab.id);
+  } catch {
+    // 特殊页面无法刷新时忽略
+  }
 }
 
 // ─── 事件绑定 ──────────────────────────────────────────
@@ -203,21 +294,29 @@ function bindEvents() {
     if (res.success) {
       isListening = res.enabled;
       updateStatusUI(res.enabled);
+      if (res.enabled) {
+        onboardingDone = true;
+        await savePref({ onboardingDone: true });
+      }
     }
+    updateGuide();
   });
 
-  // 搜索与筛选输入统一防抖，避免连续输入触发多次渲染
-  const renderMediaDebounced = debounce(renderMedia, 200);
+  const renderAndSaveFiltersDebounced = debounce(() => {
+    renderMedia();
+    persistViewFilters();
+  }, 200);
   const renderAndSaveDimensionsDebounced = debounce(() => {
     renderMedia();
+    persistViewFilters();
     saveMinDimensions();
   }, 200);
 
-  el.searchInput.addEventListener('input', renderMediaDebounced);
-  el.filterMinSize.addEventListener('input', renderMediaDebounced);
+  el.searchInput.addEventListener('input', renderAndSaveFiltersDebounced);
+  el.filterMinSize.addEventListener('input', renderAndSaveFiltersDebounced);
+  el.filterExtensions.addEventListener('input', renderAndSaveFiltersDebounced);
   el.filterMinWidth.addEventListener('input', renderAndSaveDimensionsDebounced);
   el.filterMinHeight.addEventListener('input', renderAndSaveDimensionsDebounced);
-  el.filterExtensions.addEventListener('input', renderMediaDebounced);
 
   el.mediaTabs.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-media-type]');
@@ -247,21 +346,16 @@ function bindEvents() {
     renderMedia();
   });
 
-  el.btnFilter.addEventListener('click', () => {
-    // 筛选面板是浮层：用 class 切换显隐，不再写行内 display（行内样式会盖过 CSS）
-    toggleFilterPanel();
-  });
+  el.btnFilter.addEventListener('click', () => toggleFilterPanel());
+  el.btnFilterClose.addEventListener('click', closeFilterPanel);
 
-  // 浮层的两种常规关闭方式：点击面板/按钮以外、按 Esc
   document.addEventListener('click', (event) => {
     if (!el.filterPanel.classList.contains('open')) return;
     if (el.filterPanel.contains(event.target) || el.btnFilter.contains(event.target)) return;
     closeFilterPanel();
   });
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeFilterPanel();
-  });
+  el.btnFilterReset.addEventListener('click', resetAllFilters);
 
   el.sourceFilter.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-source]');
@@ -277,17 +371,13 @@ function bindEvents() {
     sortBy = button.dataset.sort;
     await saveUiSettings();
     renderMedia();
-    // 清晰度排序需要分数：缺失时才触发分析，完成后再由 PHASH_STATE 拉回并重渲
     if (sortBy === 'sharpness') requestContentMetrics();
   });
 
   el.mergeSimilar.addEventListener('change', async () => {
     mergeSimilar = el.mergeSimilar.checked;
-
-    // 两套分组语义互斥：相似归并优先，按页面分组置为不可用（按钮 title 里说明，不静默切换）
     if (mergeSimilar) groupByPage = false;
     expandedGroups.clear();
-
     await saveUiSettings();
     renderMedia();
     if (mergeSimilar) requestContentMetrics();
@@ -305,12 +395,10 @@ function bindEvents() {
       : MESSAGE_TYPES.SCROLL_CAPTURE_START;
     const res = await sendMessage(type);
     if (!res.success) {
-      alert(res.error || t('errorScrollUnsupported'));
+      showInlineNotice(res.error || t('errorScrollUnsupported'));
       return;
     }
-    if (type === MESSAGE_TYPES.SCROLL_CAPTURE_START) {
-      setScrollRunning(true);
-    }
+    if (type === MESSAGE_TYPES.SCROLL_CAPTURE_START) setScrollRunning(true);
   });
 
   el.btnRatingOpen.addEventListener('click', openStorePage);
@@ -318,15 +406,9 @@ function bindEvents() {
 
   el.btnSiteToggle.addEventListener('click', async () => {
     if (!currentDomain) return;
-
-    // siteRules 为整表替换语义：恢复跟随 = 从表中删除该键
     const next = { ...siteRules };
-    if (next[currentDomain] === 'block') {
-      delete next[currentDomain];
-    } else {
-      next[currentDomain] = 'block';
-    }
-
+    if (next[currentDomain] === 'block') delete next[currentDomain];
+    else next[currentDomain] = 'block';
     const res = await sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, {
       settings: { siteRules: next },
     });
@@ -359,20 +441,15 @@ function bindEvents() {
   el.btnSelectAll.addEventListener('click', () => {
     const filtered = getFilteredMedia();
     const allCurrentSelected = filtered.length > 0 && filtered.every(media => selectedIds.has(media.id));
-
-    if (allCurrentSelected) {
-      filtered.forEach(media => selectedIds.delete(media.id));
-    } else {
-      filtered.forEach(media => selectedIds.add(media.id));
-    }
+    if (allCurrentSelected) filtered.forEach(media => selectedIds.delete(media.id));
+    else filtered.forEach(media => selectedIds.add(media.id));
     renderMedia();
   });
 
-  // 导出当前筛选结果（所见即所导）
   el.btnExport.addEventListener('click', () => {
     const filtered = getFilteredMedia();
     if (filtered.length === 0) {
-      alert(t('alertNoExport'));
+      showInlineNotice(t('alertNoExport'));
       return;
     }
     const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
@@ -384,108 +461,184 @@ function bindEvents() {
     URL.revokeObjectURL(url);
   });
 
-  el.btnSettings.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
+  el.btnSettings.addEventListener('click', () => chrome.runtime.openOptionsPage());
+
+  el.btnTheme.addEventListener('click', async () => {
+    const next = getTheme() === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    updateThemeButton();
+    await savePref({ theme: next });
   });
 
-  el.btnDownloadMenu.addEventListener('click', () => {
-    toggleStrategyMenu();
+  el.btnDownload.addEventListener('click', () => openPlanDialog());
+
+  el.btnGuideStart.addEventListener('click', async () => {
+    const res = await sendMessage(MESSAGE_TYPES.TOGGLE_LISTENING, { enabled: true });
+    if (!res.success) return;
+    isListening = true;
+    el.toggle.checked = true;
+    updateStatusUI(true);
+    onboardingDone = true;
+    await savePref({ onboardingDone: true });
+    updateGuide();
+    showInlineNotice(t('guideAfterRefresh'));
+    await refreshActiveTab();
   });
 
-  el.strategyMenu.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-strategy]');
-    if (!button) return;
-    downloadStrategy = button.dataset.strategy;
-    el.strategyMenu.querySelectorAll('[data-strategy]').forEach(option => {
-      option.classList.toggle('active', option === button);
-    });
-    closeStrategyMenu();
+  el.btnGuideLater.addEventListener('click', async () => {
+    onboardingDone = true;
+    await savePref({ onboardingDone: true });
+    updateGuide();
   });
 
-  // 策略菜单与筛选浮层一样，支持点击外部与 Esc 关闭
-  document.addEventListener('click', (event) => {
-    if (!el.strategyMenu.classList.contains('open')) return;
-    if (el.strategyMenu.contains(event.target) || el.btnDownloadMenu.contains(event.target)) return;
-    closeStrategyMenu();
+  el.btnLastResultView.addEventListener('click', () => {
+    if (lastResult) openResultDialog(lastResult);
+  });
+  el.btnLastResultDismiss.addEventListener('click', async () => {
+    lastResult = null;
+    await savePref({ lastDownloadResult: null });
+    updateLastResultRow();
+  });
+  el.btnStaleFix.addEventListener('click', resetStaleStatuses);
+
+  el.btnOnlyVisible.addEventListener('click', () => openPlanDialog('filtered'));
+  el.btnClearHidden.addEventListener('click', clearHiddenSelection);
+  el.btnCancelBatch.addEventListener('click', async () => {
+    await sendMessage(MESSAGE_TYPES.CANCEL_DOWNLOAD);
+    await loadMedia();
   });
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeStrategyMenu();
+  // 计划层
+  el.planScope.addEventListener('change', (event) => {
+    if (!plan || event.target.name !== 'plan-scope') return;
+    plan.scope = event.target.value;
+    renderPlan();
+  });
+  el.planStrategy.addEventListener('change', async (event) => {
+    if (!plan || event.target.name !== 'plan-strategy') return;
+    plan.strategy = event.target.value;
+    downloadStrategy = plan.strategy;
+    await savePref({ downloadStrategy });
+    renderPlan();
+  });
+  el.btnPlanOnlyVisible.addEventListener('click', () => {
+    if (!plan) return;
+    plan.scope = 'filtered';
+    renderPlan();
+  });
+  el.btnPlanClearHidden.addEventListener('click', () => {
+    clearHiddenSelection();
+    if (!plan) return;
+    plan = { ...plan, ...getCandidates() };
+    renderPlan();
+  });
+  el.btnPlanCancel.addEventListener('click', closePlanDialog);
+  el.btnPlanClose.addEventListener('click', closePlanDialog);
+  el.btnPlanStart.addEventListener('click', () => {
+    if (!plan) return;
+    const items = plan.scope === 'selected' ? plan.selected : plan.filtered;
+    const strategy = plan.strategy;
+    closePlanDialog();
+    startDownload(items.map(media => media.id), strategy);
   });
 
-  el.btnDownloadSelected.addEventListener('click', async () => {
-    const selected = allMedia.filter(media => selectedIds.has(media.id));
-    if (selected.length === 0) {
-      alert(t('alertNoSelection'));
-      return;
+  // 结果层
+  el.btnResultClose.addEventListener('click', closeResultDialog);
+  el.btnResultDone.addEventListener('click', closeResultDialog);
+  el.btnResultFolder.addEventListener('click', () => {
+    try { chrome.downloads.showDefaultFolder(); } catch { /* 平台不支持时静默 */ }
+  });
+  el.btnResultCopy.addEventListener('click', async () => {
+    const ok = await copyText(buildResultReport(currentResult));
+    if (ok) {
+      el.btnResultCopy.textContent = t('resultCopied');
+      setTimeout(() => { el.btnResultCopy.textContent = t('resultCopy'); }, 1600);
     }
-    await downloadMediaAsZip(selected, el.btnDownloadSelected, t('btnDownloadSelected'), downloadStrategy);
   });
-
-  el.btnDownloadAll.addEventListener('click', async () => {
-    const filtered = getFilteredMedia();
-    if (filtered.length === 0) {
-      alert(t('alertNoDownloadable'));
-      return;
-    }
-    await downloadMediaAsZip(filtered, el.btnDownloadAll, t('btnDownloadAll'));
+  el.btnResultRetry.addEventListener('click', () => {
+    const ids = (currentResult?.failedItems || []).map(item => item.id).filter(Boolean);
+    if (ids.length === 0) return;
+    closeResultDialog();
+    startDownload(ids, downloadStrategy);
   });
 
   // 列表容器事件委托：渲染替换 innerHTML 后监听依然有效
   el.imageList.addEventListener('click', (event) => {
-    // 相似组头：展开/收起到「只看最清晰」
     const similarHeader = event.target.closest('[data-similar]');
-    if (similarHeader) {
-      toggleSimilarGroup(similarHeader);
-      return;
-    }
-
-    // 分组头：切换组内容折叠（组头不是条目的祖先，先于 data-id 判定）
+    if (similarHeader) { toggleSimilarGroup(similarHeader); return; }
     const groupHeader = event.target.closest('[data-group]');
-    if (groupHeader) {
-      toggleGroupCollapse(groupHeader);
-      return;
-    }
+    if (groupHeader) { toggleGroupCollapse(groupHeader); return; }
 
     const actionEl = event.target.closest('[data-action]');
     const item = event.target.closest('[data-id]');
     if (!actionEl) {
-      // 点击条目空白区域 = 切换选中
       if (item) toggleSelection(item.dataset.id);
       return;
     }
     const id = item?.dataset.id;
     switch (actionEl.dataset.action) {
-      case 'select':
-        if (id) toggleSelection(id);
-        break;
-      case 'open':
-        if (id) openLightbox(id);
-        break;
-      case 'download':
-        if (id) downloadOne(id, actionEl);
-        break;
-      case 'cancel':
-        if (id) cancelOne(id);
-        break;
-      case 'remove':
-        if (id) removeMedia(id);
-        break;
+      case 'select': if (id) toggleSelection(id); break;
+      case 'open': if (id) openLightbox(id); break;
+      case 'download': if (id) downloadOne(id, actionEl); break;
+      case 'cancel': if (id) cancelOne(id); break;
+      case 'remove': if (id) removeMedia(id); break;
+      case 'refresh': refreshActiveTab(); break;
+      case 'reset-filters': resetAllFilters(); break;
     }
   });
 
-  // lightbox 交互
+  // 键盘可选中：条目与分组头都支持 Enter / Space
+  el.imageList.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.target.closest('button')) return;
+    const header = event.target.closest('[data-similar], [data-group]');
+    if (header) {
+      event.preventDefault();
+      if (header.dataset.similar !== undefined) toggleSimilarGroup(header);
+      else toggleGroupCollapse(header);
+      return;
+    }
+    const preview = event.target.closest('[data-action="open"]');
+    if (preview) {
+      const previewItem = preview.closest('[data-id]');
+      if (previewItem) {
+        event.preventDefault();
+        openLightbox(previewItem.dataset.id);
+      }
+      return;
+    }
+    const item = event.target.closest('[data-id]');
+    if (item) {
+      event.preventDefault();
+      toggleSelection(item.dataset.id);
+    }
+  });
+
   el.lightboxClose.addEventListener('click', closeLightbox);
   el.lightboxPrev.addEventListener('click', () => lightboxNav(-1));
   el.lightboxNext.addEventListener('click', () => lightboxNav(1));
   el.lightbox.addEventListener('click', (event) => {
     if (event.target === el.lightbox) closeLightbox();
   });
+
   document.addEventListener('keydown', (event) => {
-    if (!lightboxOpen) return;
-    if (event.key === 'Escape') closeLightbox();
-    else if (event.key === 'ArrowLeft') lightboxNav(-1);
-    else if (event.key === 'ArrowRight') lightboxNav(1);
+    if (event.key === 'Tab' && activeOverlay) {
+      trapFocus(event, activeOverlay);
+      return;
+    }
+    if (event.key === 'Escape') {
+      if (activeOverlay) {
+        event.preventDefault();
+        closeActiveOverlay();
+        return;
+      }
+      closeFilterPanel();
+      return;
+    }
+    if (activeOverlay === el.lightbox) {
+      if (event.key === 'ArrowLeft') lightboxNav(-1);
+      else if (event.key === 'ArrowRight') lightboxNav(1);
+    }
   });
 
   chrome.runtime.onMessage.addListener((message) => {
@@ -494,31 +647,33 @@ function bindEvents() {
     }
     if (message.type === MESSAGE_TYPES.MEDIA_DETAILS_UPDATED) {
       allMedia = (message.payload?.images || allMedia).map(normalizeMedia);
-      // 预览打开期间跳过重渲，关闭时统一校准
       if (!lightboxOpen) renderMedia();
     }
     if (message.type === MESSAGE_TYPES.ZIP_PROGRESS) {
-      if (activeZipButton) {
-        const { done = 0, total = 0, volume, volumes } = message.payload || {};
-        zipProgressSeen = true;
-        const volumePrefix = volumes > 1 ? `${t('progressVolume', volume, volumes)} ` : '';
-        setButtonText(activeZipButton, `${volumePrefix}${t('progressPacking', done, total)}`);
-      }
+      if (!downloadInFlight) return;
+      const { done = 0, total = 0, volume, volumes } = message.payload || {};
+      zipProgressSeen = true;
+      const volumePrefix = volumes > 1 ? `${t('progressVolume', volume, volumes)} ` : '';
+      const text = `${volumePrefix}${t('progressPacking', done, total)}`;
+      el.progressText.textContent = text;
+      setButtonText(el.btnDownload, text);
+      el.btnCancelBatch.hidden = true;
     }
     if (message.type === MESSAGE_TYPES.DOWNLOAD_STATUS_CHANGED) {
       const { id, status, error } = message.payload || {};
       if (id && status) setItemStatusUI(id, status, error || '');
-      if (['downloaded', 'failed', 'pending'].includes(status)) {
-        refreshStats();
+      if (['downloaded', 'failed', 'pending'].includes(status)) refreshStats();
+      if (downloadInFlight && !zipProgressSeen && ['downloading', 'downloaded', 'failed'].includes(status)) {
+        el.btnCancelBatch.hidden = false;
       }
-      // 逐条直下没有 ZIP 进度事件，用状态流转驱动按钮计数
-      if (activeZipButton && !zipProgressSeen && ['downloaded', 'failed'].includes(status)) {
+      if (downloadInFlight && !zipProgressSeen && ['downloaded', 'failed'].includes(status)) {
         activeZipCompleted = Math.min(activeZipCompleted + 1, activeZipTotal);
-        setButtonText(activeZipButton, t('progressProcessing', activeZipCompleted, activeZipTotal));
+        const text = t('progressProcessing', activeZipCompleted, activeZipTotal);
+        el.progressText.textContent = text;
+        setButtonText(el.btnDownload, text);
       }
     }
     if (message.type === MESSAGE_TYPES.SITE_RULES_CHANGED) {
-      // 右键菜单触发的站点规则变更，同步站点行
       siteRules = message.payload?.siteRules || {};
       updateSiteRow();
     }
@@ -526,8 +681,6 @@ function bindEvents() {
       setScrollRunning(Boolean(message.payload?.running));
     }
     if (message.type === MESSAGE_TYPES.PHASH_STATE) {
-      // 只负责进度反馈：数据回填统一由发起方在请求结束时 loadMedia() 完成，
-      // 避免「广播重渲 + 请求返回重渲」两份渲染
       const { running, done = 0, total = 0 } = message.payload || {};
       metricsRunning = Boolean(running);
       metricsDone = done;
@@ -535,6 +688,49 @@ function bindEvents() {
       updateMetricsHint();
     }
   });
+}
+
+// ─── 弹层与焦点 ────────────────────────────────────────
+
+function focusableIn(root) {
+  return [...root.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+    .filter(node => !node.disabled && node.getClientRects().length > 0);
+}
+
+function trapFocus(event, container) {
+  const nodes = focusableIn(container);
+  if (nodes.length === 0) return;
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function openOverlay(overlay, focusTarget) {
+  if (!activeOverlay) focusReturnTo = document.activeElement;
+  if (activeOverlay && activeOverlay !== overlay) activeOverlay.hidden = true;
+  activeOverlay = overlay;
+  overlay.hidden = false;
+  (focusTarget || focusableIn(overlay)[0])?.focus();
+}
+
+function closeOverlay(overlay) {
+  overlay.hidden = true;
+  if (activeOverlay === overlay) activeOverlay = null;
+  const target = focusReturnTo;
+  focusReturnTo = null;
+  if (target && target.getClientRects().length > 0) target.focus();
+}
+
+function closeActiveOverlay() {
+  if (activeOverlay === el.planOverlay) closePlanDialog();
+  else if (activeOverlay === el.resultOverlay) closeResultDialog();
+  else if (activeOverlay === el.lightbox) closeLightbox();
 }
 
 // ─── 数据加载与筛选 ────────────────────────────────────
@@ -583,6 +779,17 @@ function saveUiSettings() {
   });
 }
 
+function persistViewFilters() {
+  viewFilters = {
+    search: el.searchInput.value,
+    minSize: el.filterMinSize.value,
+    extensions: el.filterExtensions.value,
+    minWidth: el.filterMinWidth.value,
+    minHeight: el.filterMinHeight.value,
+  };
+  return savePref({ viewFilters });
+}
+
 function saveMinDimensions() {
   return sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, {
     settings: {
@@ -627,12 +834,10 @@ function getFilteredMedia() {
 
   return allMedia.filter(media => {
     if (media.mediaType !== activeMediaType) return false;
-    // 来源筛选：老数据无 source 字段，归一为网络捕获
     if (sourceFilter !== 'all' && (media.source || 'network') !== sourceFilter) return false;
     if (activeFormat !== 'all' && media.extension !== activeFormat) return false;
     if (manualExtensions.length > 0 && !manualExtensions.includes(media.extension)) return false;
     if (minSize > 0 && media.size < minSize * 1024) return false;
-    // 最小宽高：尺寸未知的条目不参与该过滤
     if (minWidth > 0 && media.width > 0 && media.width < minWidth) return false;
     if (minHeight > 0 && media.height > 0 && media.height < minHeight) return false;
     if (search) {
@@ -643,26 +848,115 @@ function getFilteredMedia() {
   });
 }
 
+function getCandidates() {
+  return {
+    filtered: getFilteredMedia(),
+    selected: allMedia.filter(media => selectedIds.has(media.id)),
+  };
+}
+
+function getHiddenSelectedCount(candidates) {
+  const { filtered, selected } = candidates || getCandidates();
+  const visible = new Set(filtered.map(media => media.id));
+  return selected.filter(media => !visible.has(media.id)).length;
+}
+
+async function resetAllFilters() {
+  el.searchInput.value = '';
+  el.filterMinSize.value = '';
+  el.filterExtensions.value = '';
+  el.filterMinWidth.value = '';
+  el.filterMinHeight.value = '';
+  el.mergeSimilar.checked = false;
+  activeFormat = 'all';
+  sourceFilter = 'all';
+  sortBy = 'capturedAt';
+  mergeSimilar = false;
+  viewFilters = { ...DEFAULT_VIEW_FILTERS };
+  await savePref({ viewFilters });
+  await saveMinDimensions();
+  await saveUiSettings();
+  renderMedia();
+}
+
+function countActiveFilters() {
+  let count = 0;
+  if (el.searchInput.value.trim()) count += 1;
+  if ((parseInt(el.filterMinSize.value, 10) || 0) > 0) count += 1;
+  if ((parseInt(el.filterMinWidth.value, 10) || 0) > 0) count += 1;
+  if ((parseInt(el.filterMinHeight.value, 10) || 0) > 0) count += 1;
+  if (getManualExtensions().length > 0) count += 1;
+  if (sourceFilter !== 'all') count += 1;
+  if (sortBy !== 'capturedAt') count += 1;
+  if (mergeSimilar) count += 1;
+  if (activeFormat !== 'all') count += 1;
+  return count;
+}
+
+// ─── 引导与状态提示 ────────────────────────────────────
+
+function updateGuide() {
+  el.guide.hidden = isListening || allMedia.length > 0 || onboardingDone;
+}
+
+function updateThemeButton() {
+  const dark = getTheme() === 'dark';
+  // SVG 元素没有 HTMLElement.hidden，必须用属性切换才能命中 [hidden] 样式
+  el.themeSun.toggleAttribute('hidden', !dark);
+  el.themeMoon.toggleAttribute('hidden', dark);
+  const tip = dark ? t('themeToLight') : t('themeToDark');
+  el.btnTheme.title = tip;
+  el.btnTheme.setAttribute('aria-label', tip);
+}
+
+function updateLastResultRow() {
+  if (!lastResult || downloadInFlight) {
+    el.lastResultRow.hidden = true;
+    return;
+  }
+  el.lastResultText.textContent = t('lastResult', lastResult.succeeded || 0, lastResult.failed || 0);
+  el.lastResultRow.hidden = false;
+}
+
+function updateStaleRow() {
+  const stuck = allMedia.filter(media => media.status === 'downloading');
+  el.staleRow.hidden = stuck.length === 0 || downloadInFlight;
+  el.staleText.textContent = t('staleStatus', stuck.length);
+}
+
+async function resetStaleStatuses() {
+  const ids = allMedia.filter(media => media.status === 'downloading').map(media => media.id);
+  if (ids.length === 0) return;
+  await sendMessage(MESSAGE_TYPES.UPDATE_MEDIA_STATUSES, { ids, status: 'pending' });
+  ids.forEach(id => {
+    const media = allMedia.find(item => item.id === id);
+    if (media) media.status = 'pending';
+  });
+  renderMedia();
+  updateStaleRow();
+}
+
+function showInlineNotice(message) {
+  el.progressRow.hidden = false;
+  el.progressText.textContent = message;
+  el.btnCancelBatch.hidden = true;
+  setTimeout(() => {
+    if (!downloadInFlight) el.progressRow.hidden = true;
+  }, 4000);
+}
+
 // ─── 单条下载 / 取消 ───────────────────────────────────
 
 async function downloadOne(id, button) {
   if (button) button.disabled = true;
   setItemStatusUI(id, 'downloading', '');
   const res = await sendMessage(MESSAGE_TYPES.DOWNLOAD_ONE, { id });
-  // 状态流转由 DOWNLOAD_STATUS_CHANGED 广播驱动；
-  // 条目已不存在时不会有广播，这里回退状态
-  if (res.success === false && res.error === 'media not found') {
-    setItemStatusUI(id, 'pending');
-  }
+  if (res.success === false && res.error === 'media not found') setItemStatusUI(id, 'pending');
 }
 
 async function cancelOne(id) {
   const res = await sendMessage(MESSAGE_TYPES.CANCEL_DOWNLOAD, { id });
-  // 取消成功时状态回退由广播（cancelled → pending）驱动；
-  // 后台无进行中任务时重新拉取，同步真实状态
-  if (res.success && res.cancelled === false) {
-    await loadMedia();
-  }
+  if (res.success && res.cancelled === false) await loadMedia();
 }
 
 async function removeMedia(id) {
@@ -672,96 +966,267 @@ async function removeMedia(id) {
   renderMedia();
 }
 
-// ─── ZIP 下载（打包在 background 的 offscreen document 中进行） ──
+// ─── 下载计划 ──────────────────────────────────────────
 
-let activeZipButton = null;
-let activeZipTotal = 0;
-let activeZipCompleted = 0;
-let zipProgressSeen = false;
-
-/**
- * 更新按钮文案
- * 下载按钮内部有独立的 .btn-label 与计数 span，直接写 button.textContent
- * 会把结构整个冲掉，因此只写 label；没有 label 的旧结构按钮退回整写
- */
 function setButtonText(button, text) {
-  const label = button?.querySelector('.btn-label');
-  (label || button).textContent = text;
+  (button.querySelector('.btn-label') || button).textContent = text;
+}
+
+function openPlanDialog(forceScope) {
+  if (downloadInFlight) return;
+  const candidates = getCandidates();
+  if (candidates.selected.length === 0 && candidates.filtered.length === 0) return;
+  plan = {
+    ...candidates,
+    scope: forceScope || (candidates.selected.length > 0 ? 'selected' : 'filtered'),
+    strategy: downloadStrategy,
+  };
+  renderPlan();
+  openOverlay(el.planOverlay, el.btnPlanStart);
+}
+
+function closePlanDialog() {
+  plan = null;
+  closeOverlay(el.planOverlay);
 }
 
 /**
- * 批量下载
- * @param {string} [strategy='auto'] - 传输策略：auto（后台判定）/ zip / direct
+ * 按 background 的 planTransfer / splitVolumes 规则做同口径估算，
+ * 用于下载前展示产物。只是预估，实际以后台返回的结果为准。
  */
-async function downloadMediaAsZip(mediaItems, button, defaultText, strategy = 'auto') {
-  button.disabled = true;
-  activeZipButton = button;
-  activeZipTotal = mediaItems.length;
-  activeZipCompleted = 0;
+function estimatePlan(items, strategy) {
+  const transfer = settings?.transfer || {};
+  const bypassFileSize = transfer.bypassFileSize ?? 50 * 1024 * 1024;
+  const bypassBatchSize = transfer.bypassBatchSize ?? 500 * 1024 * 1024;
+  const maxZipFiles = transfer.maxZipFiles ?? 200;
+  const maxZipBytes = transfer.maxZipBytes ?? 500 * 1024 * 1024;
+  const videoDirect = transfer.videoDirect !== false;
+
+  const cappedFrom = items.length;
+  const limited = items.slice(0, MAX_BATCH_DOWNLOAD);
+  const totalBytes = limited.reduce((sum, media) => sum + (Number(media.size) || 0), 0);
+  const base = { capped: cappedFrom > MAX_BATCH_DOWNLOAD, cappedFrom, totalBytes, count: limited.length };
+
+  if (strategy === 'direct') {
+    return { ...base, zipVolumes: 0, directFiles: limited.length };
+  }
+  if (strategy === 'zip') {
+    return { ...base, zipVolumes: limited.length > 0 ? 1 : 0, directFiles: 0 };
+  }
+
+  const videos = limited.filter(media => media.mediaType === MEDIA_TYPES.VIDEO);
+  const zipCandidates = videoDirect
+    ? limited.filter(media => media.mediaType !== MEDIA_TYPES.VIDEO)
+    : limited;
+  const directFiles = videoDirect ? videos.length : 0;
+  const oversized = zipCandidates.some(media => (Number(media.size) || 0) > bypassFileSize);
+
+  if (totalBytes > bypassBatchSize || oversized) {
+    return { ...base, zipVolumes: 0, directFiles: limited.length };
+  }
+
+  let volumes = 0;
+  let fileCount = 0;
+  let volumeBytes = 0;
+  zipCandidates.forEach(media => {
+    const size = Number(media.size) || 0;
+    if (fileCount > 0 && (fileCount + 1 > maxZipFiles || volumeBytes + size > maxZipBytes)) {
+      volumes += 1;
+      fileCount = 0;
+      volumeBytes = 0;
+    }
+    fileCount += 1;
+    volumeBytes += size;
+  });
+  if (fileCount > 0) volumes += 1;
+
+  return { ...base, zipVolumes: volumes, directFiles };
+}
+
+function planOutputText(estimate) {
+  if (estimate.zipVolumes > 0 && estimate.directFiles > 0) {
+    return t('planOutputDescription', estimate.zipVolumes, estimate.directFiles);
+  }
+  if (estimate.zipVolumes > 0) return t('planOutputZipOnly', estimate.zipVolumes);
+  return t('planOutputDirectOnly', estimate.directFiles);
+}
+
+function renderPlan() {
+  if (!plan) return;
+
+  el.planScopeSelected.textContent = t('planScopeSelected', plan.selected.length);
+  el.planScopeFiltered.textContent = t('planScopeFiltered', plan.filtered.length);
+  el.planScope.querySelectorAll('input[name="plan-scope"]').forEach(input => {
+    input.checked = input.value === plan.scope;
+    input.disabled = input.value === 'selected' ? plan.selected.length === 0 : plan.filtered.length === 0;
+  });
+  el.planStrategy.querySelectorAll('input[name="plan-strategy"]').forEach(input => {
+    input.checked = input.value === plan.strategy;
+  });
+
+  const hiddenCount = getHiddenSelectedCount(plan);
+  el.planHiddenNote.hidden = plan.scope !== 'selected' || hiddenCount === 0;
+  el.planHiddenNote.textContent = t('planHiddenSelected', hiddenCount);
+  el.planHiddenActions.hidden = hiddenCount === 0;
+  el.btnPlanOnlyVisible.textContent = t('planOnlyVisible');
+  el.btnPlanClearHidden.textContent = t('planClearHidden');
+
+  const items = plan.scope === 'selected' ? plan.selected : plan.filtered;
+  const estimate = estimatePlan(items, plan.strategy);
+  el.planItems.textContent = t('planItems', estimate.count, estimate.totalBytes > 0 ? formatSize(estimate.totalBytes) : t('sizeUnknown'));
+  el.planOutput.textContent = planOutputText(estimate);
+  el.planSavePath.textContent = t('planSavePath', settings?.savePath || 'OpenDownload');
+
+  const notes = [];
+  if (estimate.capped) notes.push(t('planCapped', MAX_BATCH_DOWNLOAD));
+  if (estimate.zipVolumes > 1) notes.push(t('planRiskVolume'));
+  if (!settings?.sendCookies) notes.push(t('planRiskCookies'));
+  notes.push(t('planCancelNoZip'));
+  el.planNotes.innerHTML = notes.map(note => `<p>${escapeHtml(note)}</p>`).join('');
+  el.btnPlanStart.disabled = items.length === 0;
+}
+
+// ─── 批量下载与结果 ────────────────────────────────────
+
+async function startDownload(ids, strategy) {
+  if (ids.length === 0 || downloadInFlight) return;
+  downloadInFlight = true;
   zipProgressSeen = false;
-  closeStrategyMenu();
-  setButtonText(button, t('progressProcessing', 0, activeZipTotal));
+  activeZipTotal = ids.length;
+  activeZipCompleted = 0;
+  el.btnDownload.disabled = true;
+  el.progressRow.hidden = false;
+  el.progressText.textContent = t('progressTitle');
+  el.btnCancelBatch.hidden = true;
+  el.lastResultRow.hidden = true;
+  setButtonText(el.btnDownload, t('progressProcessing', 0, ids.length));
 
   try {
-    const payload = { ids: mediaItems.map(media => media.id) };
-    // auto 不传 strategy，让后台按阈值判定
+    const payload = { ids };
     if (strategy !== 'auto') payload.strategy = strategy;
-
-    const result = await sendMessage(MESSAGE_TYPES.DOWNLOAD_ZIP, payload);
-
-    if (result.success) {
-      alert(formatDownloadSummary(result));
-      await loadMedia();
-    } else {
-      alert(t('downloadFailed', result.error || t('unknownError')));
-    }
+    const res = await sendMessage(MESSAGE_TYPES.DOWNLOAD_ZIP, payload);
+    await finishDownload(res);
   } catch (error) {
-    alert(t('downloadFailed', error.message));
+    await finishDownload({ success: false, error: error?.message || t('unknownError') });
   } finally {
-    activeZipButton = null;
-    button.disabled = false;
-    setButtonText(button, defaultText);
+    downloadInFlight = false;
+    el.progressRow.hidden = true;
+    el.btnCancelBatch.hidden = true;
+    el.btnDownload.disabled = false;
+    updateLastResultRow();
+    updateStaleRow();
+    updateDownloadButton();
   }
 }
 
-/**
- * 汇总批量下载结果：传输策略、分卷数与失败原因（V15-01）
- */
-function formatDownloadSummary(result) {
-  const parts = [
-    t('summarySucceeded', result.succeeded),
-    t('summaryFailed', result.failed),
-  ];
-
-  // 批量上限截断：告诉用户这次只处理了前 N 条，避免误以为全部都在下载
-  if (result.capped) {
-    parts.push(t('batchCappedNote', result.cappedFrom));
+function normalizeResult(res) {
+  if (!res || !res.success) {
+    return {
+      ok: false,
+      error: res?.error || t('unknownError'),
+      succeeded: 0,
+      failed: 0,
+      strategy: '',
+      volumes: [],
+      failedItems: [],
+      capped: false,
+      cappedFrom: 0,
+      directSucceeded: 0,
+      at: Date.now(),
+    };
   }
+  return {
+    ok: true,
+    succeeded: res.succeeded || 0,
+    failed: res.failed || 0,
+    strategy: res.strategy || '',
+    volumes: res.volumes || [],
+    failedItems: (res.failedItems || []).map(item => ({ id: item.id || '', error: item.error || '' })),
+    capped: Boolean(res.capped),
+    cappedFrom: res.cappedFrom || 0,
+    directSucceeded: res.directSucceeded || 0,
+    at: Date.now(),
+  };
+}
 
-  if (result.strategy === 'direct') {
-    parts.push(t('summaryDirect'));
-  } else if (result.strategy === 'mixed') {
-    // 混合批次：分别报数，避免用户以为「点一次下载却只拿到散文件」
-    parts.push(t('summaryVideoDirect', result.directSucceeded || 0));
-    if (result.volumes?.length > 1) {
-      parts.push(t('summaryVolumes', result.volumes.length));
-    }
-  } else if (result.volumes?.length > 1) {
-    parts.push(t('summaryVolumes', result.volumes.length));
+async function finishDownload(res) {
+  const result = normalizeResult(res);
+  lastResult = result;
+  await savePref({ lastDownloadResult: result });
+  await loadMedia();
+  openResultDialog(result);
+}
+
+function openResultDialog(result) {
+  currentResult = result;
+  renderResult(result);
+  openOverlay(el.resultOverlay, el.btnResultDone);
+}
+
+function closeResultDialog() {
+  closeOverlay(el.resultOverlay);
+}
+
+function resultDetailLines(result) {
+  const lines = [];
+  if (!result.ok) lines.push(t('downloadFailed', result.error));
+  if (result.strategy === 'direct') lines.push(t('resultDirect'));
+  if (result.strategy === 'mixed' && result.directSucceeded > 0) {
+    lines.push(t('resultVideoDirect', result.directSucceeded));
   }
+  if ((result.volumes || []).length > 1) lines.push(t('resultVolumes', result.volumes.length));
+  if (result.capped) lines.push(t('resultCapped', result.cappedFrom, MAX_BATCH_DOWNLOAD));
+  lines.push(t('planSavePath', settings?.savePath || 'OpenDownload'));
+  return lines;
+}
 
-  let message = t('downloadDone', parts.join(t('listComma')));
+function renderResult(result) {
+  if (!result) return;
+  el.resultTitle.textContent = result.ok ? t('resultTitleDone') : t('resultTitleFailed');
+  el.resultMetrics.innerHTML = [
+    `<span class="result-metric ok">${escapeHtml(t('resultSucceeded', result.succeeded || 0))}</span>`,
+    `<span class="result-metric bad">${escapeHtml(t('resultFailed', result.failed || 0))}</span>`,
+  ].join('');
+  el.resultDetails.innerHTML = resultDetailLines(result)
+    .map(line => `<p>${escapeHtml(line)}</p>`)
+    .join('');
 
-  const reasons = (result.failedItems || [])
-    .map(item => item.error)
-    .filter(Boolean)
-    .slice(0, 3);
+  const failures = result.failedItems || [];
+  el.resultFailureList.innerHTML = failures.length === 0
+    ? `<li class="result-empty">${escapeHtml(t('resultNoFailures'))}</li>`
+    : failures.map(item => `<li><strong>${escapeHtml(item.id)}</strong><span>${escapeHtml(item.error || t('unknownError'))}</span></li>`).join('');
 
-  if (reasons.length > 0) {
-    message += `\n${t('summaryFailureReasons', reasons.join(t('listSemicolon')))}`;
+  const retryIds = failures.map(item => item.id).filter(Boolean);
+  el.btnResultRetry.disabled = retryIds.length === 0;
+  el.btnResultRetry.title = retryIds.length === 0 ? t('errorNoItemsToRetry') : '';
+  el.btnResultCopy.textContent = t('resultCopy');
+}
+
+function buildResultReport(result) {
+  if (!result) return '';
+  const header = result.ok
+    ? t('downloadDone', [t('summarySucceeded', result.succeeded), t('summaryFailed', result.failed)].join(t('listComma')))
+    : t('downloadFailed', result.error || t('unknownError'));
+  const lines = [header, ...resultDetailLines(result), t('resultFailureList')];
+  (result.failedItems || []).forEach(item => lines.push(`${item.id}: ${item.error || ''}`));
+  if ((result.failedItems || []).length === 0) lines.push(t('resultNoFailures'));
+  return lines.join('\n');
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = text;
+    document.body.appendChild(area);
+    area.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch { /* 剪贴板不可用时忽略 */ }
+    area.remove();
+    return copied;
   }
-
-  return message;
 }
 
 // ─── 渲染 ──────────────────────────────────────────────
@@ -782,7 +1247,10 @@ function renderMedia() {
     selected: allMedia.filter(media => selectedIds.has(media.id)).length,
   });
   updateSelectionSummary();
-  updateDownloadCounts();
+  updateDownloadButton();
+  updateFilterCount();
+  updateHiddenSelectionBar();
+  updateGuide();
 
   el.imageList.classList.toggle('card-mode', viewMode === 'card');
 
@@ -791,40 +1259,29 @@ function renderMedia() {
     return;
   }
 
-  if (viewMode === 'card') {
-    renderCardView(filtered);
-  } else if (mergeSimilar) {
-    renderSimilarListView(filtered);
-  } else if (groupByPage) {
-    renderGroupedListView(filtered);
-  } else {
-    renderListView(filtered);
-  }
+  if (viewMode === 'card') renderCardView(filtered);
+  else if (mergeSimilar) renderSimilarListView(filtered);
+  else if (groupByPage) renderGroupedListView(filtered);
+  else renderListView(filtered);
 }
 
-/**
- * 列表展示顺序
- * 默认按捕获时间倒序（存储是升序追加，反转即最新在前）；
- * 选清晰度时按分数降序，同分（多为未分析）回落到捕获时间，避免顺序随机
- */
 function sortForDisplay(mediaItems) {
   const items = [...mediaItems];
-
   if (sortBy === 'sharpness') {
     return items.sort((a, b) => (
       (b.sharpness || 0) - (a.sharpness || 0) || (b.capturedAt || 0) - (a.capturedAt || 0)
     ));
   }
-
   return items.reverse();
 }
 
 function renderMediaTabs() {
   const counts = countBy(allMedia, 'mediaType');
   el.mediaTabs.querySelectorAll('[data-media-type]').forEach(button => {
-    const mediaType = button.dataset.mediaType;
-    button.classList.toggle('active', mediaType === activeMediaType);
-    button.querySelector('.tab-count').textContent = counts[mediaType] || 0;
+    const active = button.dataset.mediaType === activeMediaType;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+    button.querySelector('.tab-count').textContent = counts[button.dataset.mediaType] || 0;
   });
 }
 
@@ -833,16 +1290,16 @@ function renderFormatTabs() {
   const currentMedia = allMedia.filter(media => media.mediaType === activeMediaType);
   const counts = countBy(currentMedia, 'extension');
   const total = currentMedia.length;
-  const tabs = ['all', ...formats];
+  // 只显示实际存在的格式，避免一整排 0 计数的 chip 占据顶部
+  const tabs = ['all', ...formats.filter(format => (counts[format] || 0) > 0)];
 
-  if (activeFormat !== 'all' && !tabs.includes(activeFormat)) {
-    activeFormat = 'all';
-  }
+  if (activeFormat !== 'all' && !tabs.includes(activeFormat)) activeFormat = 'all';
 
   el.formatTabs.innerHTML = tabs.map(format => {
     const label = format === 'all' ? t('tabAll') : format;
     const count = format === 'all' ? total : (counts[format] || 0);
-    return `<button class="tab ${format === activeFormat ? 'active' : ''}" data-format="${format}">${escapeHtml(label)}<span class="tab-count">${count}</span></button>`;
+    const active = format === activeFormat;
+    return `<button class="tab ${active ? 'active' : ''}" data-format="${format}" aria-pressed="${active}">${escapeHtml(label)}<span class="tab-count">${count}</span></button>`;
   }).join('');
 }
 
@@ -858,13 +1315,8 @@ function renderCardView(mediaItems) {
     .join('');
 }
 
-/**
- * 列表视图按来源页面分组渲染
- * 组间按组内最新 capturedAt 倒序，组内沿用「最新在前」
- */
 function renderGroupedListView(mediaItems) {
   const groups = new Map();
-
   sortForDisplay(mediaItems).forEach(media => {
     const key = media.tabUrl || '';
     if (!groups.has(key)) groups.set(key, []);
@@ -876,11 +1328,12 @@ function renderGroupedListView(mediaItems) {
 
   el.imageList.innerHTML = ordered.map(([key, items]) => {
     const collapsed = collapsedGroups.has(key);
+    const title = groupTitleOf(items);
     return `
       <div class="list-group">
-        <div class="list-group-header" data-group="${escapeAttr(key)}">
-          <span class="group-arrow">${collapsed ? '▸' : '▾'}</span>
-          <span class="group-title">${escapeHtml(groupTitleOf(items))}</span>
+        <div class="list-group-header" data-group="${escapeAttr(key)}" role="button" tabindex="0" aria-expanded="${!collapsed}" aria-label="${escapeAttr(t('ariaToggleGroup', title))}">
+          <span class="group-arrow" aria-hidden="true">${collapsed ? '▸' : '▾'}</span>
+          <span class="group-title">${escapeHtml(title)}</span>
           <span class="group-count">${items.length}</span>
         </div>
         <div class="list-group-body"${collapsed ? ' hidden' : ''}>
@@ -904,40 +1357,31 @@ function groupTitleOf(items) {
 function toggleGroupCollapse(groupHeader) {
   const key = groupHeader.dataset.group || '';
   const collapsed = !collapsedGroups.has(key);
-
-  if (collapsed) {
-    collapsedGroups.add(key);
-  } else {
-    collapsedGroups.delete(key);
-  }
+  if (collapsed) collapsedGroups.add(key);
+  else collapsedGroups.delete(key);
 
   const body = groupHeader.nextElementSibling;
   if (body) body.hidden = collapsed;
   const arrow = groupHeader.querySelector('.group-arrow');
   if (arrow) arrow.textContent = collapsed ? '▸' : '▾';
+  groupHeader.setAttribute('aria-expanded', String(!collapsed));
 }
 
-/**
- * 相似图归并视图（V16-03）
- * 组内按清晰度降序、默认只展示最清晰的一张，点组头展开看全部；
- * 无法比较（phash 为空，多为未分析或计算失败）的条目各自成组，按普通条目平铺
- */
 function renderSimilarListView(mediaItems) {
   const groups = groupBySimilarity(sortForDisplay(mediaItems));
 
   el.imageList.innerHTML = groups.map(group => {
-    if (group.items.length === 1) {
-      return listItemTemplate(group.items[0], 0);
-    }
+    if (group.items.length === 1) return listItemTemplate(group.items[0], 0);
 
     const expanded = expandedGroups.has(group.key);
     const visible = expanded ? group.items : group.items.slice(0, 1);
+    const label = t('groupSimilarCount', group.items.length);
 
     return `
       <div class="list-group">
-        <div class="list-group-header similar-header" data-similar="${escapeAttr(group.key)}" title="${escapeAttr(t(expanded ? 'tooltipCollapseSimilar' : 'tooltipExpandSimilar'))}">
-          <span class="group-arrow">${expanded ? '▾' : '▸'}</span>
-          <span class="group-title">${escapeHtml(t('groupSimilarCount', group.items.length))}</span>
+        <div class="list-group-header similar-header" data-similar="${escapeAttr(group.key)}" role="button" tabindex="0" aria-expanded="${expanded}" aria-label="${escapeAttr(t('ariaToggleGroup', label))}" title="${escapeAttr(t(expanded ? 'tooltipCollapseSimilar' : 'tooltipExpandSimilar'))}">
+          <span class="group-arrow" aria-hidden="true">${expanded ? '▾' : '▸'}</span>
+          <span class="group-title">${escapeHtml(label)}</span>
         </div>
         <div class="list-group-body">
           ${visible.map((media, index) => listItemTemplate(media, index)).join('')}
@@ -949,25 +1393,13 @@ function renderSimilarListView(mediaItems) {
 
 function toggleSimilarGroup(header) {
   const key = header.dataset.similar || '';
-
-  if (expandedGroups.has(key)) {
-    expandedGroups.delete(key);
-  } else {
-    expandedGroups.add(key);
-  }
-
-  // 组的构成与顺序都不变，只有组内可见条数变化；整体重渲比局部插删更不容易出错
+  if (expandedGroups.has(key)) expandedGroups.delete(key);
+  else expandedGroups.add(key);
   renderMedia();
 }
 
-/**
- * 请求补齐缺失的内容级指标（V16-03）
- * 只在需要时触发（开启相似归并 / 切到清晰度排序），不在捕获期计算；
- * 仅针对图片——视频需要解码帧，本期不纳入
- */
 async function requestContentMetrics() {
   if (metricsRunning) return;
-
   const targets = allMedia.filter(media => media.mediaType === MEDIA_TYPES.IMAGE && !media.phash);
   if (targets.length === 0) return;
 
@@ -984,16 +1416,11 @@ async function requestContentMetrics() {
   updateMetricsHint();
 
   if (!res.success) {
-    alert(res.error || t('errorNothingToAnalyze'));
+    showInlineNotice(res.error || t('errorNothingToAnalyze'));
     return;
   }
-
-  // 指标已写回 store，重新拉取后再渲染，保证列表用的是一份一致数据
   await loadMedia();
-
-  if (res.failed > 0) {
-    alert(t('mergeSimilarSummary', res.analyzed, res.failed));
-  }
+  if (res.failed > 0) showInlineNotice(t('mergeSimilarSummary', res.analyzed, res.failed));
 }
 
 function updateMetricsHint() {
@@ -1002,19 +1429,20 @@ function updateMetricsHint() {
     : t('filterMergeSimilarHint');
 }
 
-// ─── 条目模板（全量渲染与增量插入共用） ────────────────
+// ─── 条目模板 ──────────────────────────────────────────
 
 function listItemTemplate(media, index = 0) {
   const isSelected = selectedIds.has(media.id);
   const statusClass = media.status || 'pending';
   const duration = media.mediaType === MEDIA_TYPES.VIDEO ? formatDuration(media.duration) : '';
+  const name = media.filename || media.url || t('mediaUnknownName');
 
   return `
-    <div class="image-item ${isSelected ? 'selected' : ''}" data-id="${media.id}">
-      <div class="checkbox" data-action="select"></div>
+    <div class="image-item ${isSelected ? 'selected' : ''}" data-id="${media.id}" role="checkbox" aria-checked="${isSelected}" tabindex="0" aria-label="${escapeAttr(t('ariaSelectItem', name))}">
+      <div class="checkbox" data-action="select" aria-hidden="true"></div>
       ${renderThumb(media, index)}
       <div class="image-info">
-        <div class="image-name" title="${escapeHtml(media.filename)}">${escapeHtml(media.filename || media.url)}</div>
+        <div class="image-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
         <div class="image-meta">
           <span>${escapeHtml(media.domain)}</span>
           <span>${formatSize(media.size)}</span>
@@ -1024,10 +1452,9 @@ function listItemTemplate(media, index = 0) {
       </div>
       <span class="image-status ${statusClass}">${getStatusText(statusClass)}</span>
       <span class="item-action">${actionButtonHtml(media)}</span>
-      <button class="image-remove" data-action="remove" title="${escapeAttr(t('tooltipRemove'))}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
+      <button class="image-remove" data-action="remove" title="${escapeAttr(t('tooltipRemove'))}" aria-label="${escapeAttr(t('tooltipRemove'))}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </div>
@@ -1036,15 +1463,12 @@ function listItemTemplate(media, index = 0) {
 
 function cardTemplate(media, index = 0) {
   const isSelected = selectedIds.has(media.id);
-  // 尺寸维度移入悬浮提示，不再常驻占用信息条
-  const titleParts = [media.filename || media.url];
-  if (media.width > 0 && media.height > 0) {
-    titleParts.push(`${media.width}x${media.height}`);
-  }
+  const titleParts = [media.filename || media.url || t('mediaUnknownName')];
+  if (media.width > 0 && media.height > 0) titleParts.push(`${media.width}x${media.height}`);
 
   return `
-    <div class="media-card ${isSelected ? 'selected' : ''}" data-id="${media.id}" title="${escapeAttr(titleParts.join(' · '))}">
-      <div class="media-card-check">✓</div>
+    <div class="media-card ${isSelected ? 'selected' : ''}" data-id="${media.id}" role="checkbox" aria-checked="${isSelected}" tabindex="0" aria-label="${escapeAttr(t('ariaSelectItem', titleParts[0]))}" title="${escapeAttr(titleParts.join(' · '))}">
+      <div class="media-card-check" aria-hidden="true">✓</div>
       <span class="item-action">${actionButtonHtml(media)}</span>
       ${renderCardPreview(media, index)}
       ${renderCardInfo(media)}
@@ -1057,49 +1481,32 @@ function actionButtonHtml(media) {
 
   if (status === 'downloading') {
     return `
-      <button class="image-cancel" data-action="cancel" title="${escapeAttr(t('tooltipCancelDownload'))}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="6" y="6" width="12" height="12" rx="1"/>
-        </svg>
-      </button>
-    `;
+      <button class="image-cancel" data-action="cancel" title="${escapeAttr(t('tooltipCancelDownload'))}" aria-label="${escapeAttr(t('tooltipCancelDownload'))}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+      </button>`;
   }
   if (status === 'failed') {
-    const tip = media.errorMsg
-      ? t('tooltipRetryWithReason', media.errorMsg)
-      : t('tooltipRetryDownload');
+    const tip = media.errorMsg ? t('tooltipRetryWithReason', media.errorMsg) : t('tooltipRetryDownload');
     return `
-      <button class="image-retry" data-action="download" title="${escapeAttr(tip)}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="23 4 23 10 17 10"/>
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-        </svg>
-      </button>
-    `;
+      <button class="image-retry" data-action="download" title="${escapeAttr(tip)}" aria-label="${escapeAttr(tip)}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>`;
   }
   if (status === 'pending') {
     return `
-      <button class="image-download" data-action="download" title="${escapeAttr(t('tooltipDownload'))}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-      </button>
-    `;
+      <button class="image-download" data-action="download" title="${escapeAttr(t('tooltipDownload'))}" aria-label="${escapeAttr(t('tooltipDownload'))}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>`;
   }
-  return ''; // downloaded 无操作按钮
+  return '';
 }
 
 function renderThumb(media, index = 0) {
   if (media.mediaType === MEDIA_TYPES.VIDEO) {
     return `
-      <div class="image-thumb-placeholder" data-action="open">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-      </div>
-    `;
+      <div class="image-thumb-placeholder" data-action="open" role="button" tabindex="0" aria-label="${escapeAttr(t('ariaMediaPreview'))}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      </div>`;
   }
 
   const previewUrl = getPreviewUrl(media);
@@ -1108,13 +1515,8 @@ function renderThumb(media, index = 0) {
   return `
     <img class="image-thumb" data-action="open" src="${escapeHtml(previewUrl)}" alt="" ${loading} decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
     <div class="image-thumb-placeholder" data-action="open" style="display:none;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <circle cx="8.5" cy="8.5" r="1.5"/>
-        <polyline points="21 15 16 10 5 21"/>
-      </svg>
-    </div>
-  `;
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    </div>`;
 }
 
 function renderCardPreview(media, index = 0) {
@@ -1128,31 +1530,26 @@ function renderCardPreview(media, index = 0) {
         <video src="${escapeHtml(previewUrl)}" muted preload="${index < EAGER_PREVIEW_COUNT ? 'metadata' : 'none'}"></video>
         ${duration ? `<span class="duration-badge">${duration}</span>` : ''}
         <div class="media-card-placeholder" style="display:none;">${escapeHtml(`${t('mediaVideoLabel')} ${media.extension || ''}`)}</div>
-      </div>
-    `;
+      </div>`;
   }
 
   return `
     <div class="media-card-preview" data-action="open">
       <img src="${escapeHtml(previewUrl)}" alt="" ${loading} decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="media-card-placeholder" style="display:none;">${escapeHtml(`${t('mediaImageLabel')} ${media.extension || ''}`)}</div>
-    </div>
-  `;
+    </div>`;
 }
 
 function renderCardInfo(media) {
   const type = (media.extension || media.mediaType || '').toUpperCase();
-  const size = formatSize(media.size);
-
   return `
     <div class="media-card-info">
       <div class="media-card-name">${escapeHtml(media.filename || media.url || t('mediaUnknownName'))}</div>
       <div class="media-card-meta">
         <span class="format-badge">${escapeHtml(type)}</span>
-        <span class="media-card-size">${escapeHtml(size)}</span>
+        <span class="media-card-size">${escapeHtml(formatSize(media.size))}</span>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 function getPreviewUrl(media) {
@@ -1167,21 +1564,27 @@ function getPreviewLoadingAttrs(index) {
 
 function renderEmptyState() {
   const label = activeMediaType === MEDIA_TYPES.VIDEO ? t('mediaVideoLabel') : t('mediaImageLabel');
-  const message = allMedia.length === 0 ? t('emptyStateIdle') : t('emptyStateNoMatch', label);
+  const noRecords = allMedia.length === 0;
+  const message = noRecords
+    ? (isListening ? t('emptyHintRefresh') : t('emptyStateIdle'))
+    : t('emptyStateNoMatch', label);
+  const hint = noRecords && isListening ? t('emptyHintRefresh') : (noRecords ? '' : t('emptyHintNoMatch'));
+  const action = noRecords && isListening
+    ? `<button class="empty-action" data-action="refresh">${escapeHtml(t('emptyActionRefresh'))}</button>`
+    : (!noRecords ? `<button class="empty-action" data-action="reset-filters">${escapeHtml(t('emptyActionReset'))}</button>` : '');
 
   el.imageList.innerHTML = `
     <div class="empty-state">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-        <circle cx="8.5" cy="8.5" r="1.5"/>
-        <polyline points="21 15 16 10 5 21"/>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
       </svg>
       <p>${escapeHtml(message)}</p>
-    </div>
-  `;
+      ${hint && hint !== message ? `<small>${escapeHtml(hint)}</small>` : ''}
+      ${action}
+    </div>`;
 }
 
-// ─── MEDIA_FOUND 增量更新 ──────────────────────────────
+// ─── 增量更新与局部状态 ────────────────────────────────
 
 function handleMediaFound(media) {
   allMedia.push(media);
@@ -1189,13 +1592,10 @@ function handleMediaFound(media) {
   renderFormatTabs();
 
   if (lightboxOpen) {
-    // 预览打开期间只更新数据，关闭时统一校准
     updateStats({ total: allMedia.length });
     return;
   }
 
-  // 列表视图的分组/相似归并，以及任何视图下的清晰度排序（新条目可能插到中间），
-  // 都无法靠「插到最前」得到正确顺序，直接全量重渲
   if (sortBy === 'sharpness' || (viewMode === 'list' && (groupByPage || mergeSimilar))) {
     renderMedia();
     return;
@@ -1205,18 +1605,20 @@ function handleMediaFound(media) {
   const hasItems = el.imageList.querySelector('[data-id]');
 
   if (passesFilter && hasItems) {
-    // 增量插入：新条目显示在最前，不重建既有 DOM（缩略图不闪、按钮状态不丢）
-    const template = viewMode === 'card' ? cardTemplate(media, EAGER_PREVIEW_COUNT) : listItemTemplate(media, EAGER_PREVIEW_COUNT);
+    const template = viewMode === 'card'
+      ? cardTemplate(media, EAGER_PREVIEW_COUNT)
+      : listItemTemplate(media, EAGER_PREVIEW_COUNT);
     el.imageList.insertAdjacentHTML('afterbegin', template);
     updateStats({ total: allMedia.length, matching: getFilteredMedia().length });
+    updateDownloadButton();
   } else if (passesFilter && !hasItems) {
-    renderMedia(); // 空态 → 有数据
+    renderMedia();
   } else {
     updateStats({ total: allMedia.length, matching: getFilteredMedia().length });
+    updateDownloadButton();
+    updateHiddenSelectionBar();
   }
 }
-
-// ─── 条目状态局部更新 ──────────────────────────────────
 
 function findItemEl(id) {
   return el.imageList.querySelector(`[data-id="${CSS.escape(id)}"]`);
@@ -1230,7 +1632,6 @@ function setItemStatusUI(id, status, errorMsg = '') {
 
   const item = findItemEl(id);
   if (!item) return;
-
   const badge = item.querySelector('.image-status');
   if (badge) {
     badge.className = `image-status ${status}`;
@@ -1240,7 +1641,7 @@ function setItemStatusUI(id, status, errorMsg = '') {
   if (actionWrap) actionWrap.innerHTML = actionButtonHtml(media);
 }
 
-// ─── Lightbox 预览层 ───────────────────────────────────
+// ─── Lightbox ──────────────────────────────────────────
 
 function openLightbox(id) {
   lightboxItems = getFilteredMedia();
@@ -1248,17 +1649,14 @@ function openLightbox(id) {
   if (lightboxIndex === -1) return;
 
   lightboxOpen = true;
-  el.lightbox.hidden = false;
   document.body.classList.add('lightbox-open');
   renderLightbox();
+  openOverlay(el.lightbox, el.lightboxClose);
 }
 
 function renderLightbox() {
   const media = lightboxItems[lightboxIndex];
-  if (!media) {
-    closeLightbox();
-    return;
-  }
+  if (!media) { closeLightbox(); return; }
 
   el.lightboxStage.innerHTML = media.mediaType === MEDIA_TYPES.VIDEO
     ? `<video src="${escapeHtml(getPreviewUrl(media))}" controls preload="metadata" playsinline></video>`
@@ -1272,10 +1670,20 @@ function closeLightbox() {
   lightboxOpen = false;
   lightboxItems = [];
   lightboxIndex = -1;
-  el.lightbox.hidden = true;
-  // 及时释放媒体引用
   el.lightboxStage.innerHTML = '';
   document.body.classList.remove('lightbox-open');
+  if (el.lightbox.hidden) return;
+
+  el.lightbox.hidden = true;
+  if (activeOverlay === el.lightbox) activeOverlay = null;
+  const returnId = focusReturnTo?.dataset?.id;
+  const returnTarget = focusReturnTo;
+  focusReturnTo = null;
+
+  // 预览期间跳过重渲，关闭时统一校准；重渲后按 id 把键盘焦点还给原条目
+  renderMedia();
+  const node = (returnId ? findItemEl(returnId) : returnTarget) || returnTarget;
+  if (node && node.getClientRects().length > 0) node.focus();
 }
 
 function lightboxNav(delta) {
@@ -1288,23 +1696,32 @@ function lightboxNav(delta) {
 // ─── UI 更新 ───────────────────────────────────────────
 
 function toggleSelection(id) {
-  if (selectedIds.has(id)) {
-    selectedIds.delete(id);
-  } else {
-    selectedIds.add(id);
-  }
-  // 局部更新选中态，不重建整列表
+  if (selectedIds.has(id)) selectedIds.delete(id);
+  else selectedIds.add(id);
+
   const item = findItemEl(id);
-  if (item) item.classList.toggle('selected', selectedIds.has(id));
+  if (item) {
+    item.classList.toggle('selected', selectedIds.has(id));
+    item.setAttribute('aria-checked', String(selectedIds.has(id)));
+  }
   updateSelectionButton(getFilteredMedia());
   updateStats({ selected: allMedia.filter(media => selectedIds.has(media.id)).length });
   updateSelectionSummary();
-  updateDownloadCounts();
+  updateDownloadButton();
+  updateHiddenSelectionBar();
+}
+
+function clearHiddenSelection() {
+  const visible = new Set(getFilteredMedia().map(media => media.id));
+  [...selectedIds].forEach(id => { if (!visible.has(id)) selectedIds.delete(id); });
+  renderMedia();
 }
 
 function updateViewButtons() {
   el.btnViewList.classList.toggle('active', viewMode === 'list');
   el.btnViewCard.classList.toggle('active', viewMode === 'card');
+  el.btnViewList.setAttribute('aria-pressed', String(viewMode === 'list'));
+  el.btnViewCard.setAttribute('aria-pressed', String(viewMode === 'card'));
 }
 
 function updateSelectionButton(filtered) {
@@ -1312,42 +1729,50 @@ function updateSelectionButton(filtered) {
   el.btnSelectAll.textContent = allCurrentSelected ? t('btnDeselectAll') : t('btnSelectAll');
 }
 
-/**
- * 页脚左侧的选择汇总：「已选择 N 项 · 合计大小」
- * size 为 0 的条目（DOM 来源常没有 Content-Length）不计入合计
- */
 function updateSelectionSummary() {
   const selected = allMedia.filter(media => selectedIds.has(media.id));
-
   if (selected.length === 0) {
     el.selectionSummary.hidden = true;
     return;
   }
-
   const totalSize = selected.reduce((sum, media) => sum + (Number(media.size) || 0), 0);
   el.selectionSummary.hidden = false;
   el.selectionSummaryText.textContent = t('footerSelectedSummary', selected.length, formatSize(totalSize));
 }
 
-/**
- * 两个下载按钮上的数量徽标（选中数 / 当前筛选数）
- */
-function updateDownloadCounts() {
-  const selectedCount = selectedIds.size;
-  const filteredCount = getFilteredMedia().length;
+function updateDownloadButton() {
+  if (downloadInFlight) return;
+  const { filtered, selected } = getCandidates();
+  const count = selected.length > 0 ? selected.length : filtered.length;
+  el.btnDownloadLabel.textContent = count > 0 ? t('btnDownloadN', count) : t('btnDownloadIdle');
+  el.btnDownloadCount.textContent = count > 0 ? `(${count})` : '';
+  el.btnDownload.disabled = count === 0;
+}
 
-  el.btnDownloadSelectedCount.textContent = selectedCount > 0 ? `(${selectedCount})` : '';
-  el.btnDownloadAllCount.textContent = filteredCount > 0 ? `(${filteredCount})` : '';
+function updateFilterCount() {
+  const count = countActiveFilters();
+  el.filterCount.hidden = count === 0;
+  el.filterCount.textContent = String(count);
+  el.filterCount.setAttribute('aria-label', t('filterActiveCount', count));
+}
+
+function updateHiddenSelectionBar() {
+  const hiddenCount = getHiddenSelectedCount();
+  el.hiddenSelectionBar.hidden = hiddenCount === 0;
+  el.hiddenSelectionText.textContent = t('planHiddenSelected', hiddenCount);
+  el.btnOnlyVisible.textContent = t('planOnlyVisible');
+  el.btnClearHidden.textContent = t('planClearHidden');
 }
 
 function updateStatusUI(enabled) {
   el.statusDot.classList.toggle('active', enabled);
   el.statusText.textContent = enabled ? t('statusListening') : t('statusStopped');
-  // 头部开关旁的文字与状态行保持同源
-  el.switchLabel.textContent = enabled ? t('statusListening') : t('statusStopped');
-  el.switchLabel.classList.toggle('active', enabled);
-  // 滚动抓取依赖监听通路，未开启监听时不可用
   el.btnScroll.disabled = !enabled;
+  // 说明性文案收进 tip，不再常驻占一行
+  const hint = enabled ? t('statusListeningHint') : t('statusStoppedHint');
+  el.statusIndicator.title = hint;
+  el.toggle.title = hint;
+  el.toggle.setAttribute('aria-label', hint);
 }
 
 function updateSiteRow() {
@@ -1355,41 +1780,33 @@ function updateSiteRow() {
     el.siteRow.hidden = true;
     return;
   }
-
   const blocked = siteRules?.[currentDomain] === 'block';
   el.siteRow.hidden = false;
-  el.siteInfo.textContent = blocked
-    ? `${t('siteCurrent', currentDomain)} · ${t('sitePaused')}`
-    : `${t('siteCurrent', currentDomain)} · ${t('siteFollowGlobal')}`;
-  el.btnSiteToggle.textContent = blocked ? t('siteResumeAction') : t('sitePauseAction');
+  el.siteInfo.textContent = currentDomain;
+  const statusText = blocked ? t('sitePaused') : t('siteFollowGlobal');
+  const actionText = blocked ? t('siteResumeAction') : t('sitePauseAction');
+  el.siteRow.title = `${t('siteCurrent', currentDomain)} · ${statusText}`;
+  el.btnSiteToggle.title = actionText;
+  el.btnSiteToggle.setAttribute('aria-label', actionText);
+  el.sitePause.toggleAttribute('hidden', blocked);
+  el.siteResume.toggleAttribute('hidden', !blocked);
 }
 
-/**
- * 评分引导（V16-05）：累计成功下载数首次达到阈值时展示一次
- * 弹窗是高频工具，每次打开都请求评分会直接损伤体验，因此只在写盘前出现一次
- */
 function maybeShowRatingPrompt(stats = {}) {
-  // 设置没读到就不弹：宁可漏弹一次，也不要重复打扰
   if (!settings || settings.ui?.ratingPromptShown) return;
   if ((stats.downloaded || 0) < RATING_PROMPT_THRESHOLD) return;
-
   el.ratingRow.hidden = false;
 }
 
 function dismissRatingPrompt() {
   el.ratingRow.hidden = true;
-  // 关闭与点击「去评分」都写入同一标记，此后永不再现
   sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, {
     settings: { ui: { ratingPromptShown: true } },
   });
 }
 
 function openStorePage() {
-  // 商店详情页只需扩展自身 id，避免硬编码占位 id
-  // （开发态以「加载已解压」安装时 id 是随机值，打开会是 404，属预期）
-  chrome.tabs.create({
-    url: `https://chromewebstore.google.com/detail/${chrome.runtime.id}`,
-  });
+  chrome.tabs.create({ url: `https://chromewebstore.google.com/detail/${chrome.runtime.id}` });
   dismissRatingPrompt();
 }
 
@@ -1400,7 +1817,6 @@ function setScrollRunning(running) {
 }
 
 function updateGroupButton() {
-  // 相似归并与按页面分组互斥：置灰而不是静默把用户的选择改掉
   el.btnGroup.disabled = mergeSimilar;
   el.btnGroup.classList.toggle('active', groupByPage && !mergeSimilar);
   el.btnGroup.title = mergeSimilar
@@ -1410,49 +1826,31 @@ function updateGroupButton() {
 
 function updateSourceFilterUI() {
   el.sourceFilter.querySelectorAll('[data-source]').forEach(button => {
-    button.classList.toggle('active', button.dataset.source === sourceFilter);
+    const active = button.dataset.source === sourceFilter;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
 }
 
 function updateSortControlUI() {
   el.sortControl.querySelectorAll('[data-sort]').forEach(button => {
-    button.classList.toggle('active', button.dataset.sort === sortBy);
+    const active = button.dataset.sort === sortBy;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
 }
 
-/**
- * 筛选浮层显隐
- * 浮层覆盖在列表之上，因此展开/收起都不影响列表高度（也不会触发重排闪烁）
- * @param {boolean} [force] - 省略则取反
- */
 function toggleFilterPanel(force) {
   const open = force === undefined
     ? !el.filterPanel.classList.contains('open')
     : Boolean(force);
-
   el.filterPanel.classList.toggle('open', open);
   el.btnFilter.classList.toggle('active', open);
+  el.btnFilter.setAttribute('aria-expanded', String(open));
 }
 
 function closeFilterPanel() {
   toggleFilterPanel(false);
-}
-
-/**
- * 下载策略菜单显隐（与筛选浮层同一套模式）
- * @param {boolean} [force] - 省略则取反
- */
-function toggleStrategyMenu(force) {
-  const open = force === undefined
-    ? !el.strategyMenu.classList.contains('open')
-    : Boolean(force);
-
-  el.strategyMenu.classList.toggle('open', open);
-  el.btnDownloadMenu.classList.toggle('active', open);
-}
-
-function closeStrategyMenu() {
-  toggleStrategyMenu(false);
 }
 
 function updateStats(stats) {
@@ -1466,20 +1864,14 @@ function updateStats(stats) {
 function updateCapacityHint(statusInfo) {
   const count = statusInfo?.imageCount ?? allMedia.length;
   const truncated = statusInfo?.stats?.truncated || 0;
-
   if (count < CAPACITY_WARNING_THRESHOLD && truncated === 0) {
     el.capacityHint.hidden = true;
     el.capacityHint.textContent = '';
     return;
   }
-
   const parts = [];
-  if (count >= CAPACITY_WARNING_THRESHOLD) {
-    parts.push(t('capacityNearLimit', MAX_CAPTURED_IMAGES));
-  }
-  if (truncated > 0) {
-    parts.push(t('capacityTruncated', truncated));
-  }
+  if (count >= CAPACITY_WARNING_THRESHOLD) parts.push(t('capacityNearLimit', MAX_CAPTURED_IMAGES));
+  if (truncated > 0) parts.push(t('capacityTruncated', truncated));
   el.capacityHint.textContent = parts.join(t('listSemicolon'));
   el.capacityHint.hidden = false;
 }
@@ -1508,7 +1900,6 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// 用于 HTML 属性值（escapeHtml 不处理引号，URL 可能含单双引号）
 function escapeAttr(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
