@@ -55,18 +55,6 @@ body {
   gap: 7px;
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: linear-gradient(140deg, var(--primary), var(--primary-hover));
-  color: #fff;
-  box-shadow: var(--shadow-sm);
-}
-
 .header h1 {
   font-size: 13px;
   font-weight: 600;
@@ -2254,4 +2242,60 @@ body.lightbox-open {
 .empty-state small {
   max-width: 100%;
   word-break: break-word;
+}
+
+/* ─── 3D 图标：只用于 >=36px 的展示位 ───
+ * 工具栏、列表条目等 12–20px 位置继续用线性 SVG：
+ * 位图在这个尺寸下细节丢失，且无法跟随 currentColor 换色。
+ */
+.icon3d {
+  display: block;
+  flex-shrink: 0;
+  background: center / contain no-repeat;
+}
+
+.icon3d--logo {
+  width: 30px;
+  height: 30px;
+  background-image: url('../assets/icons/download.png');
+}
+
+.icon3d--empty {
+  width: 72px;
+  height: 72px;
+  background-image: url('../assets/icons/image.png');
+}
+
+.icon3d--empty-video {
+  background-image: url('../assets/icons/play-square.png');
+}
+
+.icon3d--guide {
+  width: 36px;
+  height: 36px;
+  background-image: url('../assets/icons/radar.png');
+}
+
+.icon3d--plan,
+.icon3d--result {
+  width: 34px;
+  height: 34px;
+}
+
+.icon3d--plan {
+  background-image: url('../assets/icons/plan.png');
+}
+
+.icon3d--result {
+  background-image: url('../assets/icons/result.png');
+}
+
+.guide-head h2,
+.dialog-head h2 {
+  flex: 0 0 auto;
+}
+
+.guide-head .guide-later,
+.dialog-head .dialog-close {
+  margin-left: auto;
 }

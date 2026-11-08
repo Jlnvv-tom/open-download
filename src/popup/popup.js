@@ -1571,12 +1571,13 @@ function renderEmptyState() {
   const action = noRecords && isListening
     ? `<button class="empty-action" data-action="refresh">${escapeHtml(t('emptyActionRefresh'))}</button>`
     : (!noRecords ? `<button class="empty-action" data-action="reset-filters">${escapeHtml(t('emptyActionReset'))}</button>` : '');
+  const iconClass = activeMediaType === MEDIA_TYPES.VIDEO
+    ? 'icon3d icon3d--empty icon3d--empty-video'
+    : 'icon3d icon3d--empty';
 
   el.imageList.innerHTML = `
     <div class="empty-state">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-      </svg>
+      <span class="${iconClass}" aria-hidden="true"></span>
       <p>${escapeHtml(message)}</p>
       ${hint && hint !== message ? `<small>${escapeHtml(hint)}</small>` : ''}
       ${action}
