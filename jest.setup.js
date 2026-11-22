@@ -188,6 +188,9 @@ global.chrome = {
     async sendMessage(message) {
       return { success: true };
     },
+    async openOptionsPage() {
+      global.chrome.runtime._optionsPageOpened = (global.chrome.runtime._optionsPageOpened || 0) + 1;
+    },
     async getContexts(filter = {}) {
       if (filter.contextTypes && !filter.contextTypes.includes('OFFSCREEN_DOCUMENT')) {
         return [];

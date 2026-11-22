@@ -21,7 +21,14 @@ const fields = {
   excludeDomains: $('#exclude-domains'),
   filterExtensions: $('#filter-extensions'),
   dedupe: $('#dedupe'),
+  floatingBall: $('#floating-ball'),
+  floatingBallBadge: $('#floating-ball-badge'),
+  floatingBallOnlyListening: $('#floating-ball-only-listening'),
+  floatingBallDraggable: $('#floating-ball-draggable'),
 };
+
+// 设置页不展示位置，整表提交 floatingBall 时必须把拖拽结果带回去
+let floatingBallPosition = { ...DEFAULT_SETTINGS.ui.floatingBall.position };
 
 function sendMessage(type, payload = {}) {
   return new Promise((resolve) => {
@@ -52,6 +59,12 @@ async function loadSettings() {
   fields.excludeDomains.value = (s.filters.domains || []).join('\n');
   fields.filterExtensions.value = (s.filters.extensions || []).join(',');
   fields.dedupe.checked = s.dedupe;
+  const fb = s.ui?.floatingBall || DEFAULT_SETTINGS.ui.floatingBall;
+  fields.floatingBall.checked = Boolean(fb.enabled);
+  fields.floatingBallBadge.checked = fb.showBadge !== false;
+  fields.floatingBallOnlyListening.checked = Boolean(fb.onlyWhenListening);
+  fields.floatingBallDraggable.checked = fb.draggable !== false;
+  floatingBallPosition = { ...(fb.position || DEFAULT_SETTINGS.ui.floatingBall.position) };
 }
 
 function collectSettings() {
@@ -74,7 +87,17 @@ function collectSettings() {
   if (fields.captureVideo.checked) mediaTypes.push('video');
 
   return {
-    ui: { theme: fields.theme.value || DEFAULT_SETTINGS.ui.theme },
+    ui: {
+      theme: fields.theme.value || DEFAULT_SETTINGS.ui.theme,
+      // 整表提交：store 对 ui 只做键级合并，floatingBall 内部不会深合并
+      floatingBall: {
+        enabled: fields.floatingBall.checked,
+        showBadge: fields.floatingBallBadge.checked,
+        onlyWhenListening: fields.floatingBallOnlyListening.checked,
+        draggable: fields.floatingBallDraggable.checked,
+        position: { ...floatingBallPosition },
+      },
+    },
     autoDownload: fields.autoDownload.checked,
     savePath: fields.savePath.value || 'OpenDownload',
     fileNaming: fields.fileNaming.value,
@@ -116,6 +139,8 @@ $('#btn-save').addEventListener('click', async () => {
   const settings = collectSettings();
   const res = await sendMessage(MESSAGE_TYPES.UPDATE_SETTINGS, { settings });
   if (res.success) {
+    const savedPosition = res.settings?.ui?.floatingBall?.position;
+    if (savedPosition) floatingBallPosition = { ...savedPosition };
     applyTheme(fields.theme.value);
     showToast(t('optionsSaved'));
   } else {
@@ -152,5 +177,6 @@ applyI18n(document);
 applyTheme();
 watchSystemTheme();
 document.title = t('optionsTitle');
+$('#options-version').textContent = `v${chrome.runtime.getManifest().version}`;
 loadSettings();
 loadRecordCount();

@@ -80,6 +80,12 @@ function renderBadge(unread) {
   ensureBadgeStyle();
   // 角标失败绝不能影响捕获主链路
   chrome.action.setBadgeText({ text }).catch(() => {});
+
+  // 悬浮球与 popup 共用同一未读数；广播失败同样不影响捕获主链路
+  chrome.runtime.sendMessage({
+    type: MESSAGE_TYPES.STATS_CHANGED,
+    payload: { unread: count },
+  }).catch(() => {});
 }
 
 /**
@@ -1024,6 +1030,13 @@ function handleRuntimeMessage(message, sender, sendResponse) {
         case MESSAGE_TYPES.GET_SETTINGS: {
           await store.init();
           sendResponse({ success: true, settings: store.getSettings() });
+          break;
+        }
+
+        case MESSAGE_TYPES.OPEN_OPTIONS: {
+          // content script 不能直接打开扩展页面，统一由 background 路由
+          await chrome.runtime.openOptionsPage();
+          sendResponse({ success: true });
           break;
         }
 

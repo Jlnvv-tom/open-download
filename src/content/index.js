@@ -324,6 +324,7 @@
   let lastMoreClickAt = 0;
 
   function broadcastScrollState(running, reason = '') {
+    updateFabPanel();
     chrome.runtime.sendMessage({
       type: 'SCROLL_CAPTURE_STATE',
       payload: { running, reason },
@@ -425,8 +426,547 @@
       return false;
     }
 
+    if (message?.type === 'STATS_CHANGED') {
+      fabUnread = Number(message.payload?.unread) || 0;
+      updateFabBadge();
+      return false;
+    }
+
     return false;
   });
+
+  // ─── 页面内悬浮球（浮出窗按钮） ────────────────────────
+  // 用 Shadow DOM 隔离：既不继承宿主页面样式，也不会把 tokens.css 的全局 reset 注入宿主。
+  // 图标一律内联 SVG：img[src] 会被上面的 DOM 扫描与 MutationObserver 当成页面资源捕获。
+
+  const FAB_HOST_ID = 'od-floating-ball-host';
+  const FAB_EDGE_GAP_PX = 24;
+  const FAB_SIZE_PX = 48;
+  const FAB_DRAG_THRESHOLD_PX = 5;
+  const FAB_BADGE_MAX = 999;
+
+  const DEFAULT_FLOATING_BALL = {
+    enabled: false,
+    showBadge: true,
+    onlyWhenListening: false,
+    draggable: true,
+    position: { edge: 'right', bottom: 96 },
+  };
+
+  const FAB_STYLES = `
+    :host {
+      all: initial;
+      display: block;
+      position: fixed;
+      z-index: 2147483647;
+      right: 24px;
+      bottom: 96px;
+      width: 48px;
+      height: 48px;
+      --od-bg: #ffffff;
+      --od-bg-hover: #f1f5f9;
+      --od-border: #e2e8f0;
+      --od-text: #1a202c;
+      --od-muted: #5b677d;
+      --od-primary: #3b82f6;
+      --od-primary-soft: #eaf2fe;
+      --od-danger: #ef4444;
+      --od-shadow: 0 6px 20px rgba(15, 23, 42, 0.16);
+      --od-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    }
+    :host([data-od-theme='dark']) {
+      --od-bg: #1a1b26;
+      --od-bg-hover: #24283b;
+      --od-border: #3a3f55;
+      --od-text: #c0caf5;
+      --od-muted: #9aa5ce;
+      --od-primary: #7aa2f7;
+      --od-primary-soft: #22304f;
+      --od-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+    .od-wrap, .od-wrap * { box-sizing: border-box; }
+    .od-wrap {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      font-family: var(--od-font);
+      line-height: 1.4;
+    }
+    .od-fab {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--od-border);
+      border-radius: 50%;
+      background: var(--od-bg);
+      box-shadow: var(--od-shadow);
+      cursor: pointer;
+      opacity: 0.82;
+      transition: opacity 160ms ease, transform 160ms ease;
+      touch-action: none;
+      font: inherit;
+      color: inherit;
+    }
+    .od-fab:hover, .od-fab:focus-visible { opacity: 1; transform: scale(1.04); }
+    :host([data-od-open='true']) .od-fab { opacity: 1; }
+    .od-fab svg { width: 24px; height: 24px; fill: none; stroke: var(--od-primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+    .od-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--od-danger);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 18px;
+      text-align: center;
+      pointer-events: none;
+    }
+    .od-panel {
+      position: absolute;
+      right: 0;
+      bottom: 60px;
+      width: 220px;
+      padding: 8px;
+      border: 1px solid var(--od-border);
+      border-radius: 12px;
+      background: var(--od-bg);
+      box-shadow: var(--od-shadow);
+    }
+    :host([data-od-edge='left']) .od-panel { right: auto; left: 0; }
+    .od-panel[hidden], .od-badge[hidden], .od-notice[hidden] { display: none; }
+    .od-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 2px 6px 8px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--od-border);
+    }
+    .od-title { font-size: 12px; font-weight: 600; color: var(--od-text); }
+    .od-version { font-size: 10px; color: var(--od-muted); white-space: nowrap; }
+    .od-action {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 6px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      font-family: var(--od-font);
+      font-size: 12px;
+      color: var(--od-text);
+      text-align: left;
+      cursor: pointer;
+    }
+    .od-action:hover, .od-action:focus-visible { background: var(--od-bg-hover); }
+    .od-action svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .od-action[data-od-action='site'] { color: var(--od-danger); }
+    .od-notice {
+      margin: 4px 2px 2px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--od-primary-soft);
+      font-size: 11px;
+      color: var(--od-muted);
+      line-height: 1.45;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .od-fab { transition: none; }
+    }
+  `;
+
+  const FAB_MARKUP = `
+    <div class="od-wrap">
+      <button class="od-fab" type="button" data-od-role="fab">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v11"></path>
+          <path d="m8 10 4 4 4-4"></path>
+          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path>
+        </svg>
+      </button>
+      <span class="od-badge" data-od-role="badge" hidden></span>
+      <div class="od-panel" data-od-role="panel" hidden>
+        <div class="od-head">
+          <span class="od-title" data-od-role="title"></span>
+          <span class="od-version" data-od-role="version"></span>
+        </div>
+        <button class="od-action" type="button" data-od-action="collect">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>
+          <span data-od-role="collect-label"></span>
+        </button>
+        <button class="od-action" type="button" data-od-action="scroll">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16"></path><path d="m6 14 6 6 6-6"></path><path d="M6 4h12"></path></svg>
+          <span data-od-role="scroll-label"></span>
+        </button>
+        <button class="od-action" type="button" data-od-action="site">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
+          <span data-od-role="site-label"></span>
+        </button>
+        <button class="od-action" type="button" data-od-action="options">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"></path></svg>
+          <span data-od-role="options-label"></span>
+        </button>
+        <div class="od-notice" data-od-role="notice" hidden></div>
+      </div>
+    </div>
+  `;
+
+  let fabHost = null;
+  let fabEls = null;
+  let fabSettings = null;
+  let fabUnread = 0;
+  let fabOpen = false;
+  let fabDrag = null;
+  let fabSuppressClick = false;
+  let fabNoticeTimer = null;
+  let fabOutsideListener = null;
+  let fabKeyListener = null;
+
+  // content script 是 classic script，不能 import i18n.js；key 仍需双语齐备
+  function t(key, ...args) {
+    return chrome.i18n.getMessage(key, args.map(String)) || key;
+  }
+
+  function normalizeFloatingBall(raw) {
+    const fb = { ...DEFAULT_FLOATING_BALL, ...(raw || {}) };
+    const p = fb.position || {};
+    fb.position = {
+      edge: p.edge === 'left' ? 'left' : 'right',
+      bottom: Number.isFinite(Number(p.bottom))
+        ? Number(p.bottom)
+        : DEFAULT_FLOATING_BALL.position.bottom,
+    };
+    return fb;
+  }
+
+  function currentFloatingBall() {
+    return normalizeFloatingBall(fabSettings?.ui?.floatingBall);
+  }
+
+  function clampFabBottom(value) {
+    const max = Math.max(FAB_EDGE_GAP_PX, window.innerHeight - FAB_SIZE_PX - FAB_EDGE_GAP_PX);
+    return Math.min(Math.max(Number(value) || 0, FAB_EDGE_GAP_PX), max);
+  }
+
+  function clampFabLeft(value) {
+    const max = Math.max(FAB_EDGE_GAP_PX, window.innerWidth - FAB_SIZE_PX - FAB_EDGE_GAP_PX);
+    return Math.min(Math.max(Number(value) || 0, FAB_EDGE_GAP_PX), max);
+  }
+
+  function applyFabPosition(fb) {
+    if (!fabHost) return;
+    fabHost.style.bottom = `${clampFabBottom(fb.position.bottom)}px`;
+    if (fb.position.edge === 'left') {
+      fabHost.style.left = `${FAB_EDGE_GAP_PX}px`;
+      fabHost.style.right = 'auto';
+    } else {
+      fabHost.style.right = `${FAB_EDGE_GAP_PX}px`;
+      fabHost.style.left = 'auto';
+    }
+    fabHost.setAttribute('data-od-edge', fb.position.edge);
+  }
+
+  function applyFabTheme(theme) {
+    if (!fabHost) return;
+    const dark = theme === 'dark'
+      || (theme !== 'light' && Boolean(window.matchMedia?.('(prefers-color-scheme: dark)').matches));
+    fabHost.setAttribute('data-od-theme', dark ? 'dark' : 'light');
+  }
+
+  function updateFabBadge() {
+    if (!fabEls) return;
+    const count = Number(fabUnread) || 0;
+    const show = currentFloatingBall().showBadge !== false && count > 0;
+    fabEls.badge.hidden = !show;
+    if (show) {
+      fabEls.badge.textContent = count > FAB_BADGE_MAX ? `${FAB_BADGE_MAX}+` : String(count);
+    }
+  }
+
+  function updateFabPanel() {
+    if (!fabEls) return;
+    fabEls.scrollLabel.textContent = scrolling
+      ? t('floatingBallScrollStop')
+      : t('floatingBallScrollStart');
+    const paused = fabSettings?.siteRules?.[location.hostname] === 'block';
+    fabEls.siteLabel.textContent = paused
+      ? t('floatingBallResumeSite')
+      : t('floatingBallPauseSite');
+  }
+
+  function updateFabTexts() {
+    if (!fabEls) return;
+    fabEls.fab.setAttribute('aria-label', t('floatingBallTitle'));
+    fabEls.fab.title = t('floatingBallTitle');
+    fabEls.title.textContent = t('floatingBallTitle');
+    fabEls.version.textContent = `v${chrome.runtime.getManifest?.().version || ''}`;
+    fabEls.collectLabel.textContent = t('floatingBallCollect');
+    fabEls.optionsLabel.textContent = t('floatingBallOpenOptions');
+    updateFabPanel();
+  }
+
+  function showFabNotice(message) {
+    if (!fabEls) return;
+    fabEls.notice.textContent = message;
+    fabEls.notice.hidden = false;
+    clearTimeout(fabNoticeTimer);
+    fabNoticeTimer = setTimeout(() => {
+      if (fabEls) fabEls.notice.hidden = true;
+    }, 3000);
+  }
+
+  function setFabOpen(open) {
+    if (!fabEls) return;
+    fabOpen = open;
+    fabEls.panel.hidden = !open;
+    fabHost.setAttribute('data-od-open', String(open));
+
+    if (open) {
+      updateFabPanel();
+      // closed shadow root 下，外部监听器看到的 target 一律是 host
+      fabOutsideListener = (event) => {
+        if (event.target !== fabHost) setFabOpen(false);
+      };
+      fabKeyListener = (event) => {
+        if (event.key === 'Escape') setFabOpen(false);
+      };
+      document.addEventListener('pointerdown', fabOutsideListener, true);
+      document.addEventListener('keydown', fabKeyListener, true);
+    } else {
+      if (fabOutsideListener) document.removeEventListener('pointerdown', fabOutsideListener, true);
+      if (fabKeyListener) document.removeEventListener('keydown', fabKeyListener, true);
+      fabOutsideListener = null;
+      fabKeyListener = null;
+    }
+  }
+
+  function unmountFab() {
+    if (!fabHost) return;
+    setFabOpen(false);
+    clearTimeout(fabNoticeTimer);
+    fabHost.remove();
+    fabHost = null;
+    fabEls = null;
+  }
+
+  function mountFab() {
+    if (fabHost) return;
+    // 扩展重载后旧 content script 可能留下一个已无事件绑定的 host，先清理再挂载
+    document.getElementById(FAB_HOST_ID)?.remove();
+
+    const host = document.createElement('od-floating-ball');
+    host.id = FAB_HOST_ID;
+    const root = host.attachShadow({ mode: 'closed' });
+    root.innerHTML = `<style>${FAB_STYLES}</style>${FAB_MARKUP}`;
+
+    const byRole = (role) => root.querySelector(`[data-od-role="${role}"]`);
+    fabHost = host;
+    fabEls = {
+      fab: byRole('fab'),
+      badge: byRole('badge'),
+      panel: byRole('panel'),
+      title: byRole('title'),
+      version: byRole('version'),
+      collectLabel: byRole('collect-label'),
+      scrollLabel: byRole('scroll-label'),
+      siteLabel: byRole('site-label'),
+      optionsLabel: byRole('options-label'),
+      notice: byRole('notice'),
+    };
+
+    (document.body || document.documentElement).appendChild(host);
+    bindFabEvents();
+    updateFabTexts();
+    updateFabBadge();
+  }
+
+  function bindFabEvents() {
+    fabEls.fab.addEventListener('click', () => {
+      if (fabSuppressClick) {
+        fabSuppressClick = false;
+        return;
+      }
+      setFabOpen(!fabOpen);
+    });
+
+    fabEls.panel.addEventListener('click', (event) => {
+      const button = event.target.closest?.('[data-od-action]');
+      if (button) handleFabAction(button.dataset.odAction);
+    });
+
+    fabEls.fab.addEventListener('pointerdown', onFabPointerDown);
+    fabEls.fab.addEventListener('pointermove', onFabPointerMove);
+    fabEls.fab.addEventListener('pointerup', onFabPointerUp);
+    fabEls.fab.addEventListener('pointercancel', onFabPointerUp);
+  }
+
+  function onFabPointerDown(event) {
+    fabSuppressClick = false;
+    if (!currentFloatingBall().draggable || event.button !== 0) return;
+    const rect = fabHost.getBoundingClientRect();
+    fabDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+      moved: false,
+    };
+    fabEls.fab.setPointerCapture?.(event.pointerId);
+  }
+
+  function onFabPointerMove(event) {
+    if (!fabDrag || event.pointerId !== fabDrag.pointerId) return;
+    const dx = event.clientX - fabDrag.startX;
+    const dy = event.clientY - fabDrag.startY;
+    if (!fabDrag.moved && Math.hypot(dx, dy) < FAB_DRAG_THRESHOLD_PX) return;
+    fabDrag.moved = true;
+
+    const top = fabDrag.startTop + dy;
+    fabHost.style.left = `${clampFabLeft(fabDrag.startLeft + dx)}px`;
+    fabHost.style.right = 'auto';
+    fabHost.style.bottom = `${clampFabBottom(window.innerHeight - top - FAB_SIZE_PX)}px`;
+  }
+
+  function onFabPointerUp(event) {
+    if (!fabDrag || event.pointerId !== fabDrag.pointerId) return;
+    const moved = fabDrag.moved;
+    fabDrag = null;
+    fabEls.fab.releasePointerCapture?.(event.pointerId);
+    if (!moved) return;
+
+    fabSuppressClick = true; // 拖拽结束时浏览器仍会派发一次 click
+    const rect = fabHost.getBoundingClientRect();
+    const fb = currentFloatingBall();
+    const next = {
+      ...fb,
+      position: {
+        edge: rect.left + FAB_SIZE_PX / 2 < window.innerWidth / 2 ? 'left' : 'right',
+        bottom: clampFabBottom(window.innerHeight - rect.bottom),
+      },
+    };
+    applyFabPosition(next);
+    saveFloatingBall(next);
+  }
+
+  function saveFloatingBall(fb) {
+    chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      payload: { settings: { ui: { floatingBall: fb } } },
+    }).catch(() => {});
+  }
+
+  function handleFabAction(action) {
+    if (action === 'collect') {
+      const { images, videos } = collectMediaCandidates();
+      const count = images.length + videos.length;
+      // bootstrap 的站点计划最长等 500ms，未就绪时 sendMediaUpdate 会跳过本轮
+      if (planSettled) {
+        sendMediaUpdate(0);
+      } else {
+        setTimeout(() => sendMediaUpdate(0), 600);
+      }
+      showFabNotice(count > 0
+        ? t('floatingBallCollectDone', count)
+        : t('floatingBallCollectNone'));
+      return;
+    }
+
+    if (action === 'scroll') {
+      if (scrolling) stopScrollCapture('stopped');
+      else startScrollCapture();
+      updateFabPanel();
+      return;
+    }
+
+    if (action === 'site') {
+      const domain = location.hostname;
+      if (!domain) return;
+      const siteRules = { ...(fabSettings?.siteRules || {}) };
+      if (siteRules[domain] === 'block') delete siteRules[domain];
+      else siteRules[domain] = 'block';
+
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_SETTINGS',
+        payload: { settings: { siteRules } },
+      }).then((res) => {
+        const next = res?.settings?.siteRules || siteRules;
+        fabSettings = { ...(fabSettings || {}), siteRules: next };
+        updateFabPanel();
+        showFabNotice(next[domain] === 'block'
+          ? t('floatingBallSitePaused')
+          : t('floatingBallSiteResumed'));
+      }).catch(() => {});
+      return;
+    }
+
+    if (action === 'options') {
+      chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' }).catch(() => {});
+      setFabOpen(false);
+    }
+  }
+
+  function applyFabSettings(settings) {
+    fabSettings = settings || {};
+    const fb = currentFloatingBall();
+    const visible = Boolean(fb.enabled)
+      && (!fb.onlyWhenListening || Boolean(fabSettings.enabled));
+
+    if (!visible) {
+      unmountFab();
+      return;
+    }
+
+    if (!fabHost) mountFab();
+    applyFabPosition(fb);
+    applyFabTheme(fabSettings.ui?.theme);
+    updateFabBadge();
+    updateFabPanel();
+  }
+
+  function initFloatingBall() {
+    // settings 变更没有广播机制，监听 storage 可覆盖 options / popup / 快捷键所有写入方
+    if (chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== 'local' || !changes.settings) return;
+        applyFabSettings(changes.settings.newValue);
+      });
+    }
+
+    const themeQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+    themeQuery?.addEventListener?.('change', () => {
+      if (fabHost) applyFabTheme(fabSettings?.ui?.theme);
+    });
+
+    window.addEventListener('resize', () => {
+      if (fabHost) applyFabPosition(currentFloatingBall());
+    });
+
+    chrome.runtime.sendMessage({ type: 'GET_SETTINGS' })
+      .then((res) => {
+        if (res?.settings) applyFabSettings(res.settings);
+      })
+      .catch(() => {});
+
+    chrome.runtime.sendMessage({ type: 'GET_STATUS' })
+      .then((res) => {
+        fabUnread = Number(res?.stats?.unread) || 0;
+        updateFabBadge();
+      })
+      .catch(() => {});
+  }
+
+  initFloatingBall();
 
   /**
    * 先取站点计划再开始扫描：若在计划到达前扫描，规则要排除的站点 UI 图片会被一起入库。

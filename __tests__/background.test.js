@@ -51,6 +51,29 @@ describe('background message handler', () => {
     consoleLog.mockRestore();
   });
 
+  test('OPEN_OPTIONS 应该打开设置页', async () => {
+    const openOptionsPage = jest.spyOn(global.chrome.runtime, 'openOptionsPage');
+    const response = await sendBackgroundMessage({ type: MESSAGE_TYPES.OPEN_OPTIONS });
+
+    expect(response.success).toBe(true);
+    expect(openOptionsPage).toHaveBeenCalledTimes(1);
+    openOptionsPage.mockRestore();
+  });
+
+  test('未读数变化应该广播 STATS_CHANGED 给悬浮球', async () => {
+    await store.init();
+    const sendMessage = jest.spyOn(global.chrome.runtime, 'sendMessage');
+
+    const response = await sendBackgroundMessage({ type: MESSAGE_TYPES.MARK_CAPTURED_READ });
+
+    expect(response.unread).toBe(0);
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: MESSAGE_TYPES.STATS_CHANGED,
+      payload: { unread: 0 },
+    });
+    sendMessage.mockRestore();
+  });
+
   test('DOM_MEDIA_UPDATE 应该富化已存在的记录且不重复入库', async () => {
     await store.init();
     await store.saveSettings({ enabled: true });

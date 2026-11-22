@@ -777,5 +777,56 @@
   },
   "optionsThemeDark": {
     "message": "深色"
+  },
+  "optionsFloatingBallSection": {
+    "message": "页面内悬浮球"
+  },
+  "optionsFloatingBall": {
+    "message": "启用悬浮球"
+  },
+  "optionsFloatingBallHint": {
+    "message": "在所有网页右下角显示快捷按钮，可随时关闭；不读取页面文本内容"
+  },
+  "optionsFloatingBallBadge": {
+    "message": "显示未读角标"
+  },
+  "optionsFloatingBallOnlyListening": {
+    "message": "仅在监听开启时显示"
+  },
+  "optionsFloatingBallDraggable": {
+    "message": "允许拖拽调整位置"
+  },
+  "floatingBallTitle": {
+    "message": "Open Download 快捷操作"
+  },
+  "floatingBallCollect": {
+    "message": "采集当前页素材"
+  },
+  "floatingBallCollectDone": {
+    "message": "已提交 $1 个候选资源"
+  },
+  "floatingBallCollectNone": {
+    "message": "当前页未发现媒体资源"
+  },
+  "floatingBallScrollStart": {
+    "message": "滚动抓取"
+  },
+  "floatingBallScrollStop": {
+    "message": "停止抓取"
+  },
+  "floatingBallPauseSite": {
+    "message": "暂停此站点"
+  },
+  "floatingBallResumeSite": {
+    "message": "恢复跟随"
+  },
+  "floatingBallSitePaused": {
+    "message": "已暂停此站点的捕获"
+  },
+  "floatingBallSiteResumed": {
+    "message": "已恢复此站点的捕获"
+  },
+  "floatingBallOpenOptions": {
+    "message": "打开设置页"
   }
 }

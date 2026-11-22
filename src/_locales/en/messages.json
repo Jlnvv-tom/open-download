@@ -777,5 +777,56 @@
   },
   "optionsThemeDark": {
     "message": "Dark"
+  },
+  "optionsFloatingBallSection": {
+    "message": "Floating button"
+  },
+  "optionsFloatingBall": {
+    "message": "Enable floating button"
+  },
+  "optionsFloatingBallHint": {
+    "message": "Show a quick-action button in the corner of every page. Can be turned off at any time; no page text is read"
+  },
+  "optionsFloatingBallBadge": {
+    "message": "Show unread badge"
+  },
+  "optionsFloatingBallOnlyListening": {
+    "message": "Only show while listening"
+  },
+  "optionsFloatingBallDraggable": {
+    "message": "Allow dragging to reposition"
+  },
+  "floatingBallTitle": {
+    "message": "Open Download quick actions"
+  },
+  "floatingBallCollect": {
+    "message": "Collect from this page"
+  },
+  "floatingBallCollectDone": {
+    "message": "Submitted $1 candidate resources"
+  },
+  "floatingBallCollectNone": {
+    "message": "No media found on this page"
+  },
+  "floatingBallScrollStart": {
+    "message": "Scroll capture"
+  },
+  "floatingBallScrollStop": {
+    "message": "Stop capture"
+  },
+  "floatingBallPauseSite": {
+    "message": "Pause this site"
+  },
+  "floatingBallResumeSite": {
+    "message": "Resume site"
+  },
+  "floatingBallSitePaused": {
+    "message": "Capture paused for this site"
+  },
+  "floatingBallSiteResumed": {
+    "message": "Capture resumed for this site"
+  },
+  "floatingBallOpenOptions": {
+    "message": "Open settings"
   }
 }

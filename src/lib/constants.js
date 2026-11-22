@@ -108,6 +108,15 @@ export const DEFAULT_SETTINGS = {
     onboardingDone: false,
     // 主题：system 跟随系统，light / dark 为用户显式选择
     theme: 'system',
+    // 页面内悬浮球：默认关闭，避免在用户不知情时向所有网页注入 UI
+    // store 对 ui 只做键级合并，floatingBall 需整表提交（与 siteRules 同语义）
+    floatingBall: {
+      enabled: false,
+      showBadge: true,
+      onlyWhenListening: false,
+      draggable: true,
+      position: { edge: 'right', bottom: 96 },
+    },
     // 「确认下载」里选择的传输策略，持久化避免重开弹窗后静默回退 auto
     downloadStrategy: 'auto',
     // Popup 展示期筛选条件，与 settings.filters（捕获期）作用域不同，单独存放
@@ -170,6 +179,9 @@ export const MESSAGE_TYPES = {
   SCROLL_CAPTURE_START: 'SCROLL_CAPTURE_START',
   SCROLL_CAPTURE_STOP: 'SCROLL_CAPTURE_STOP',
   SCROLL_CAPTURE_STATE: 'SCROLL_CAPTURE_STATE',
+  // 悬浮球：打开设置页 + 未读数变化广播（content script 里是字符串字面量，需同步）
+  OPEN_OPTIONS: 'OPEN_OPTIONS',
+  STATS_CHANGED: 'STATS_CHANGED',
   MEDIA_FOUND: 'MEDIA_FOUND',
   MEDIA_DETAILS_UPDATED: 'MEDIA_DETAILS_UPDATED',
   DOWNLOAD_STATUS_CHANGED: 'DOWNLOAD_STATUS_CHANGED',
