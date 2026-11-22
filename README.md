@@ -4,6 +4,20 @@ Chrome 扩展 (Manifest V3) — 全局监听网络请求，自动识别图片和
 
 📚 **在线文档与介绍**：https://wujihuan.github.io/open-download/ （由 `docs/` 落地页自动部署）
 
+## 界面预览
+
+| 卡片视图（浅色） | 筛选面板 |
+| :---: | :---: |
+| ![卡片视图（浅色）](screenshots/card-view-light.png) | ![筛选面板](screenshots/filter-panel.png) |
+
+| 卡片视图（深色） | 设置页 |
+| :---: | :---: |
+| ![卡片视图（深色）](screenshots/card-view-dark.png) | ![设置页](screenshots/options-dark.png) |
+
+按来源页面分组的列表视图：
+
+![列表视图](screenshots/list-view.png)
+
 ## 功能
 
 - 🌐 **双通道捕获** — 网络请求观察 + 页面元素扫描（缓存命中未发请求的图片、视频也能入库），按 URL 去重合并
@@ -71,7 +85,8 @@ open-download/
 │   │   └── zip.js         # ZIP 打包工具
 │   └── assets/            # 图标资源
 ├── docs/                  # 官网落地页（GitHub Pages 部署源）
-├── .github/workflows/     # CI：docs 部署 + Release 发布
+├── screenshots/           # 本文档使用的产品截图
+├── .github/workflows/     # CI：docs 部署 + 自动打包/发版 + Release 发布
 ├── scripts/               # 构建、打包、发布、图标生成脚本
 ├── __tests__/             # Jest 单元测试
 └── dist/                  # 构建产物，加载到 Chrome 的目录
@@ -105,7 +120,19 @@ npm run pack
 
 ## 发布与部署
 
-### 发布新版本（扩展 Release）
+### 自动打包与发版（GitHub Actions）
+
+`Build & Release` 工作流在每次推送到 `master` 时自动运行，也支持在 Actions 页面手动触发：
+
+1. 校验 `package.json` 与 `src/manifest.json` 的 `version` 一致
+2. 运行 `npm test`
+3. 执行 `npm run pack` 生成 `packages/open-download-<version>.zip`
+4. 将 zip 上传为 Action 产物，可在对应 Run 页面直接下载安装
+5. 若 `v<version>` 标签不存在，自动创建标签、推送并发布 GitHub Release（附带 zip 与自动生成的 Release Notes）；标签已存在则只产出安装包，不重复发版
+
+因此发版只需**更新版本号并提交推送**；版本号不变时不会重复创建标签或 Release。
+
+### 发布新版本（本地脚本）
 
 ```bash
 npm run release
@@ -113,9 +140,9 @@ npm run release
 
 该命令会：校验工作区干净 → 运行测试 → `npm run pack` 打包 → 创建并推送 `v<version>` 标签 → 推送 master。
 
-推送标签后，GitHub Actions 的 **Release** 工作流会自动运行测试、打包并把 `packages/open-download-<version>.zip` 发布为 GitHub Release。
+推送标签后，GitHub Actions 的 **Release** 工作流会自动运行测试、打包并把 `packages/open-download-<version>.zip` 发布为 GitHub Release。若该版本已由 `Build & Release` 自动发版，此工作流会改为补传/覆盖安装包，不会重复创建 Release。
 
-> 前提：`package.json` 与 `src/manifest.json` 的 `version` 已同步更新；需要已安装并登录 [GitHub CLI](https://cli.github.com/)（用于部分流程提示）。
+> 前提：`package.json` 与 `src/manifest.json` 的 `version` 已同步更新；本地脚本需要已安装并登录 [GitHub CLI](https://cli.github.com/)。
 
 ### 部署官网落地页（GitHub Pages）
 

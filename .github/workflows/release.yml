@@ -33,12 +33,17 @@ jobs:
       - name: Build package
         run: npm run pack
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Open Download v$VERSION" \
-            --generate-notes \
-            packages/open-download-$VERSION.zip
+          ASSET="packages/open-download-$VERSION.zip"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ASSET" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Open Download v$VERSION" \
+              --generate-notes \
+              "$ASSET"
+          fi
